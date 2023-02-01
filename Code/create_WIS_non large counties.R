@@ -1,0 +1,47 @@
+library(tidyverse)
+library(scoringutils)
+library(zoo)
+
+setwd("C:/Users/oko8/OneDrive - CDC/COVID/Forecasts/Data/")
+cut_date <-as.Date("2021-12-21")
+
+####--- Observed data ---####
+source("C:/Users/oko8/OneDrive - CDC/COVID/Forecasts/Code/Inc_Case_Eval_Manuscript/reported cases.R")
+obs_data <-rd_obs() %>%
+  filter(nchar(location) > 2) %>%
+  dplyr::select(location_name, date, true_value)
+
+####--- Estimate WIS ---####
+US_models <-function() {
+  load("C:/Users/oko8/OneDrive - CDC/COVID/Forecasts/Data/cases_nat_state_forecasts_for analysis_2022-08-18.Rdata")
+  US_models <- dat_US_state %>%
+    filter(location=="US") %>%
+    dplyr::select(model) %>% 
+    distinct()
+}
+US_models <-US_models()
+  
+dat <-function() {
+  load("C:/Users/oko8/OneDrive - CDC/COVID/Forecasts/Data/cases_non large counties_forecasts_for analysis_2022-08-18.Rdata")
+  dat <-dat_other_count %>%
+    #filter(model %in% US_models$model) %>% #filter to reduce size for non large counties
+    filter(sub_date <= cut_date)
+}
+
+dat <-dat() 
+dat <-dat %>%  
+  filter(pop_size_quant2!=5) %>%
+  rename(date=target_end_date,
+         prediction=value) %>%
+  left_join(., obs_data, by=c("date", "location")) %>%
+  mutate(id=paste0(location, "_", date)) %>%
+  filter(!id %in% neg_or_zero$id)
+
+WIS_all <-dat %>%
+  filter(type=="quantile") %>%
+  dplyr::select(-forecast_date, -id) %>%
+  score(.) %>%
+  mutate(model=as.factor(model))
+WIS_all$model <-relevel(WIS_all$model, ref ="COVIDhub-baseline")
+
+save(WIS_all, file="WIS_all horizons_non large counties_all subs.rdata")
