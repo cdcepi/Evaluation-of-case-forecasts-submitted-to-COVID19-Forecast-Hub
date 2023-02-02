@@ -1,0 +1,283 @@
+---
+title: "Supplement 2: Team Specific GEEs  & Exploration of Revision Impact"
+author: "VKL"
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+output:
+  html_document:
+    keep_md: yes
+---
+
+```{r setup, include=FALSE} 
+knitr::opts_chunk$set(warning=FALSE,message=FALSE) 
+
+library(tidyverse)
+library(covidcast)
+library(epiprocess)
+
+library(geepack)
+library(splines)
+
+library(ggeffects)
+library(emmeans)
+
+library(gridExtra)
+library(grid)
+library(cowplot)
+
+
+## Standardized formatting
+strip.background_standard <-element_blank()
+strip.text_standard <-element_text(size = 12, face='bold')
+legend.text_standard <-element_text(size=12)
+plot.caption_standard <-element_text(size=10, face = "italic")
+axis.title.y_standard <-element_text(margin = margin(1, 10, 1, 1), size=12)
+axis.text_standard <-element_text(size=11)
+
+
+## Read in data used in analysis
+main_dat <-covidcast_signal(data_source = "jhu-csse",
+                      signal = "confirmed_incidence_num",
+                      start_day = "2020-07-26",
+                      end_day = "2022-01-15",
+                      geo_type = "state",
+                      as_of = "2022-04-02") %>%
+  dplyr::select(geo_value, time_value, cases_now=value) %>%   
+  filter(geo_value!="as", geo_value!="gu", geo_value!="mp",
+         geo_value!="pr", geo_value!="vi"#, geo_value!='dc'
+         ) %>% 
+  group_by(geo_value) 
+
+dates <-seq.Date(as.Date("2020-08-01"), as.Date("2022-01-15"), by="week")
+hx_dat <-list()
+for(i in 1:length(dates)){
+  hx_dat[[i]] <-covidcast_signal(data_source = "jhu-csse",
+                      signal = "confirmed_incidence_num",
+                      start_day =dates[[i]] - 6,
+                      end_day = dates[[i]], 
+                      geo_type = "state",
+                      as_of = dates[[i]] +1) %>%
+  dplyr::select(geo_value, time_value, cases_last=value) %>%   
+  filter(geo_value!="as", geo_value!="gu", geo_value!="mp",
+         geo_value!="pr", geo_value!="vi"#, geo_value!='dc'
+         ) %>% 
+  mutate(wk = as.Date(time_value, "%m/%d/%y"), 
+         wk = as.Date(cut(wk,"week", start.on.monday = FALSE)) + 6)  
+}
+hx_dats_all <-do.call(rbind, hx_dat)
+
+cases_all <-main_dat %>%
+  left_join(., hx_dats_all, by=c("geo_value", "time_value")) %>%
+  mutate(revision=ifelse(cases_now==cases_last, 0, 1)) %>%
+  filter(revision==1) %>%
+  dplyr::select(geo_value, wk, revision) %>%
+  distinct()
+
+## rename locations based on state names
+states <-read.csv("C:/Users/oko8/OneDrive - CDC/Projects/covid19-forecast-hub/data-locations/locations.csv") %>%
+  rename(fips = location) %>%
+  mutate(fips = as.character(fips)) %>%
+  filter(nchar(fips)==2) %>%
+  dplyr::select(abbreviation, location_name)
+
+cases_all <-cases_all %>%
+  rename(abbreviation=geo_value,
+         date=wk) %>%
+  mutate(abbreviation=toupper(abbreviation)) %>%
+  left_join(., states, by="abbreviation") %>%
+  distinct() %>%
+  ungroup() %>%
+  dplyr::select(-abbreviation) %>%
+  mutate(location_name=as.factor(location_name))
+
+## Read in data
+load("C:/Users/oko8/OneDrive - CDC/COVID/Forecasts/Data/WIS_gee.Rdata")
+
+WIS_rev <-WIS_gee %>%
+   arrange(location_name, date) %>%
+   left_join(., cases_all, by=c("location_name", "date")) %>%
+   mutate(revision=ifelse(is.na(revision), 0, revision)) %>%
+   group_by(model, location_name, target) %>%
+   ungroup() %>%
+   arrange(location_name, date) %>%
+   filter(revision==0) %>%
+   mutate(location_name=droplevels(location_name))
+
+```
+
+```{r Fig S2.1, echo=FALSE, warning=FALSE, message=FALSE, fig.height=12, fig.width=20}
+
+main_dat <-main_dat %>%
+  mutate(geo_value=toupper(geo_value)) %>%
+  left_join(., states, by=c("geo_value"="abbreviation"))
+
+hx_dats_all %>%
+  mutate(geo_value=toupper(geo_value)) %>%
+  left_join(., states, by=c("geo_value"="abbreviation")) %>%
+  ungroup() %>%
+  ggplot(.) +
+  geom_line(aes(time_value, cases_last), color="#cb181d", alpha=0.55) + #as.factor(wk)),  alpha=0.65) +
+  geom_line(main_dat, mapping=aes(time_value, cases_now), size=0.65) +
+  facet_wrap(~ geo_value, scales="free_y") +
+  scale_x_date(date_labels="%b-%y", breaks = hx_dats_all$wk, date_breaks ="3 months", date_minor_breaks ="1 month") +
+  labs(y="Reported cases") +
+  theme_bw() +
+  theme(legend.position = "none", 
+        axis.title.x=element_blank(), axis.text.x=element_text(size=6),
+        strip.text=strip.text_standard, strip.background=strip.background_standard,
+        panel.border = element_rect(colour = "black", fill = NA))
+
+```
+
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+
+team <-c(as.character(unique(WIS_rev$model)))
+dat_team_rev<-list()
+
+model_rev <-list()
+
+for(i in 1:length(team)){
+  
+  dat_team_rev[[i]] <-WIS_rev %>%
+    filter(model==team[i]) %>%
+    mutate(model=droplevels(model))
+  
+  model_rev[[i]] <-geeglm(formula =  WIS_log_std ~ ns(cases_log_std, df=2) + phase + target,
+                      family = gaussian, data = dat_team_rev[[i]], id = location_name, wave=date,
+                      corstr = "independence")  
+}
+
+
+```
+
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+
+team <-c(unique(as.character(WIS_rev$model))) 
+dat_team_rev <-list()
+means_sds <-list()
+
+marg_means_int <-list()
+marg_means <-list()
+
+# Model Predictions 
+for(i in 1:length(team)){
+  
+  dat_team_rev[[i]] <-as.data.frame(WIS_rev %>%
+                                  filter(model==team[i]) %>%
+                                  mutate(model=droplevels(model)) %>%
+                                  ungroup())
+  
+  
+  means_sds[[i]] <-dat_team_rev[[i]] %>%
+    mutate(mean_log_WIS=mean(log(interval_score)),
+           sd_log_WIS=sd(log(interval_score)),
+           mean_log_cases=mean(log(true_value)),
+           sd_log_cases=sd(log(true_value))
+    ) %>%
+    dplyr::select(model, contains("mean_"), contains("sd_")) %>%
+    distinct()
+  
+  # Intercept
+  marg_means_int[[i]] <-as.data.frame(emmeans(model_rev[[i]], ~1))
+  marg_means_int[[i]] <-marg_means_int[[i]] %>%
+    rename(predicted=emmean) %>%
+    mutate(model=team[i],
+           predicted_back=(predicted*means_sds[[i]]$sd_log_WIS) + means_sds[[i]]$mean_log_WIS,
+           predicted_back_lo=(asymp.LCL*means_sds[[i]]$sd_log_WIS) + means_sds[[i]]$mean_log_WIS,
+           predicted_back_up=(asymp.UCL*means_sds[[i]]$sd_log_WIS) + means_sds[[i]]$mean_log_WIS) %>%
+    mutate(predicted_back_rescale=exp(predicted_back),
+           predicted_back_lo_rescale=exp(predicted_back_lo),
+           predicted_back_up_rescale=exp(predicted_back_up))
+  
+  #Phases
+  marg_means[[i]] <-ggemmeans(model_rev[[i]], terms=c("phase")) %>% #, "cases_log_std[-2:2]")) %>%
+    rename(phase=x,
+           cases=group) %>%
+  
+    mutate(model=team[i],
+           predicted_back=(predicted*means_sds[[i]]$sd_log_WIS) + means_sds[[i]]$mean_log_WIS,
+           predicted_back_lo=(conf.low*means_sds[[i]]$sd_log_WIS) + means_sds[[i]]$mean_log_WIS,
+           predicted_back_up=(conf.high*means_sds[[i]]$sd_log_WIS) + means_sds[[i]]$mean_log_WIS) %>%
+    mutate(predicted_back_rescale=exp(predicted_back),
+           predicted_back_lo_rescale=exp(predicted_back_lo),
+           predicted_back_up_rescale=exp(predicted_back_up)) 
+}
+marg_means_int <-do.call(rbind.data.frame, marg_means_int)
+marg_means <-do.call(rbind.data.frame, marg_means)
+
+marg_means_int <-marg_means_int %>% 
+  dplyr::select(-`1`) %>%
+  mutate(model=as.factor(model),
+         model=fct_reorder(model, predicted_back),
+         phase="Mean across phases") 
+levels <-levels(marg_means_int$model)
+
+marg_means <-marg_means %>%
+  
+  ## Order by increasing error, on average
+  mutate(model=as.factor(model),
+         model=factor(model, levels = levels)) %>%
+  mutate(phase=as.factor(ifelse(phase=="increasing", "Increasing",
+                                    ifelse(phase=="decreasing", "Decreasing",
+                                           ifelse(phase=="peak", "Peak",
+                                                  ifelse(phase=="nadir", "Nadir", "Mean across phases"))))),
+         phase=factor(phase, 
+                          levels = c("Mean across phases", "Increasing", "Peak", "Decreasing",  "Nadir"))
+  ) %>%
+  ungroup()
+  
+
+baseline <-filter(marg_means_int, model=="COVIDhub-baseline")
+
+# Figure
+FigS2.2 <-marg_means_int %>%
+  ggplot(.) +
+  geom_point(aes(model, predicted_back_rescale)) +
+  geom_linerange(aes(model, ymin=predicted_back_lo_rescale, ymax=predicted_back_up_rescale)) +
+  geom_hline(data=baseline, mapping=aes(yintercept=baseline$predicted_back_lo_rescale), color="red", linetype="dashed") + 
+  geom_hline(data=baseline, mapping=aes(yintercept=baseline$predicted_back_up_rescale), color="red", linetype="dashed") +
+  labs( y="Marginal Mean\n Weighted Interval Score", 
+        title="A.") +
+  theme_bw() +
+  theme(axis.title.y=axis.title.y_standard, axis.text=axis.text_standard,
+        legend.position = "bottom", legend.title = element_blank(), legend.text=legend.text_standard,
+        strip.text=strip.text_standard, strip.background=strip.background_standard,
+        axis.title.x = element_blank(),
+        axis.text.x = element_text(angle = 45, hjust=1))
+
+Fig6B <-marg_means %>%
+  mutate(scaled_pred=predicted_back/baseline$predicted_back,
+         SE_scaled=(predicted_back_up-predicted_back_lo)/3.92,
+         prob_base=round(pnorm(baseline$predicted_back,
+                               predicted_back, SE_scaled), 5),
+         prob_label=ifelse(prob_base >=0.9, "*", NA),
+         phase=fct_rev(phase)) %>%
+  ggplot(.) +
+  geom_tile(aes(model, phase, fill=scaled_pred)) +
+  geom_text(aes(model, phase, label=prob_label), size=4) +
+  scale_fill_gradient2(low = "#7fcdbb", high = "#fecc5c", midpoint = 1.0,
+                       name="Marginal mean Weighted Interval Score  \nscaled to the marginal mean  \nof COVIDhub-baseline model  \nacross all phases",
+                       guide = guide_colourbar(barheight = 1.5)) +
+  labs(y="", title="B.",
+       caption="*Probability >= 0.90 that forecasts outperform baseline") + 
+  theme_bw() +
+  theme(#axis.title.y=axis.title.y_standard,
+    legend.position = "bottom", legend.title.align=0.5, legend.box.just = "center", 
+    plot.caption = plot.caption_standard,
+    strip.text=strip.text_standard, strip.background=strip.background_standard,
+    panel.border = element_rect(colour = "black", fill = NA),
+    axis.title.x = element_blank(), axis.text.x = element_text(angle = 45, hjust=1), axis.text=axis.text_standard,
+    axis.ticks.y=element_blank())#, axis.text.y=element_blank())
+
+```
+
+```{r Fig S2.2, echo=FALSE, warning=F, message=F, fig.height=8.5, fig.width=8.5}
+
+FigS2.2_updated <-FigS2.2 + theme(axis.text.x = element_blank())
+
+plot_grid(FigS2.2_updated, Fig6B, rel_heights  = c(0.5, 1), axis = "l",
+          align="v", nrow = 2)
+
+```
+

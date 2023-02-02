@@ -12,19 +12,9 @@ obs_data <-rd_obs() %>%
   dplyr::select(location_name, date, true_value)
 
 ####--- Estimate WIS ---####
-US_models <-function() {
-  load("C:/Users/oko8/OneDrive - CDC/COVID/Forecasts/Data/cases_nat_state_forecasts_for analysis_2022-08-18.Rdata")
-  US_models <- dat_US_state %>%
-    filter(location=="US") %>%
-    dplyr::select(model) %>% 
-    distinct()
-}
-US_models <-US_models()
-  
 dat <-function() {
   load("C:/Users/oko8/OneDrive - CDC/COVID/Forecasts/Data/cases_non large counties_forecasts_for analysis_2022-08-18.Rdata")
   dat <-dat_other_count %>%
-    #filter(model %in% US_models$model) %>% #filter to reduce size for non large counties
     filter(sub_date <= cut_date)
 }
 

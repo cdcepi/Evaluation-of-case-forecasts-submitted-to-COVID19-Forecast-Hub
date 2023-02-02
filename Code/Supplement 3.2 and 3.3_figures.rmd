@@ -1,0 +1,291 @@
+---
+title: "Supplement 3.2 and 3.3"
+author: "VKL"
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+output:
+  html_document:
+    keep_md: yes
+---
+
+```{r setup, include=FALSE} 
+knitr::opts_chunk$set(warning=FALSE,message=FALSE) 
+
+library(tidyverse)
+library(tidytext)
+library(ggrepel)
+
+library(gridExtra)
+library(cowplot)
+library(scoringutils)
+library(viridis)
+
+library(ggeffects)
+library(emmeans)
+library(splines)
+
+setwd("C:/Users/oko8/OneDrive - CDC/COVID/Forecasts")
+
+### Need functions
+source("C:/Users/oko8/OneDrive - CDC/COVID/Forecasts/Code/Inc_Case_Eval_Manuscript/coverage.R") #coverage
+
+## Standardized formatting
+strip.background_standard <-element_blank()
+strip.text_standard <-element_text(size=10, face='bold')
+legend.text_standard <-element_text(size=12)
+plot.caption_standard <-element_text(size=11, face = "italic")
+axis.title.y_standard <-element_text(margin = margin(1, 10, 1, 1), size=12)
+axis.text_standard <-element_text(size=11)
+
+
+## Change labels for counties
+ rename_counts <-function(df) {   
+   df <-df %>%
+     mutate(pop_size_quant2=ifelse(pop_size_quant2==1, "County Forecasts: Size Quantile 1",
+                                 ifelse(pop_size_quant2==2, "County Forecasts: Size Quantile 2",
+                                        ifelse(pop_size_quant2==3, "County Forecasts: Size Quantile 3", 
+                                               ifelse(pop_size_quant2==4, "County Forecasts: Size Quantile 4", "County forecasts: Size Quantile 5")))))
+}
+
+ 
+ stop_date <-as.Date("2021-12-21")
+```
+
+## Supplemental Figures
+
+### Supplement 3: Non large country figures
+
+#### Absolute WIS
+
+```{r Fig S3.3, echo=FALSE, warning=FALSE, message=FALSE, fig.height=11, fig.width=12}
+
+# Function for WIS over time
+WIS.ot.fig_dat <-function(df) {
+  
+  sub_date <-c(unique(df$sub_date))
+  model <-c(as.character(unique(df$model)))
+  model_dates <-crossing(sub_date, model)
+  
+  cast_dates <-df %>%
+    dplyr::select(sub_date, date, pop_size_quant2) %>%
+    distinct() %>%
+    left_join(model_dates, by="sub_date")
+  
+  dat <-df %>%
+    full_join(cast_dates, ., by=c("model", "sub_date", "date", "pop_size_quant2")) %>%
+    mutate(bold=ifelse(model=="COVIDhub-baseline" | model=="COVIDhub-4_week_ensemble", "T", "F")) %>%
+    group_by(model, date, bold, pop_size_quant2) %>%
+    summarize(abWIS=mean(interval_score, na.rm=TRUE)) %>%
+    ungroup() %>%
+    mutate(grouping=ifelse(model=="COVIDhub-baseline", "COVIDhub-baseline", 
+                           ifelse(model=="COVIDhub-4_week_ensemble", "COVIDhub-4_week_ensemble", "Other teams"))) #%>%
+  return(dat)
+
+}
+cov.ot.fig_dat <-function(df) {
+  
+  sub_date <-c(unique(df$sub_date))
+  model <-c(as.character(unique(df$model)))
+  model_dates <-crossing(sub_date, model)
+  
+  cov <-df %>%
+    group_by(model, target_end_date, pop_size_quant2) %>%
+    coverage(df=.) %>%
+    summarize(cov.95=mean(coverage.95))
+
+  dat <-df %>%
+    dplyr::select(sub_date, target_end_date, pop_size_quant2) %>%
+    distinct() %>%
+    left_join(., model_dates, by=c("sub_date")) %>%
+    dplyr::select(-sub_date) %>%
+    left_join(., cov, by=c("model", "target_end_date", "pop_size_quant2")) %>%
+    distinct() %>%
+    ungroup() %>%
+    mutate(grouping=ifelse(model=="COVIDhub-baseline", "COVIDhub-baseline", 
+                           ifelse(model=="COVIDhub-4_week_ensemble", "COVIDhub-4_week_ensemble", "Other teams"))) %>%
+    mutate(bold=ifelse(model=="COVIDhub-baseline" | model=="COVIDhub-4_week_ensemble", "T", "F")) 
+  
+  return(dat)
+
+}
+ot.plot <-function(df, x, y) {
+  
+  ggplot() +
+    geom_line(data=filter(df, bold=="F"), mapping=aes({{x}}, {{y}}, group=model, color=grouping, size=bold)) +
+    geom_point(data=filter(df, bold=="F"), mapping=aes({{x}}, {{y}}, group=model, color=grouping, size=bold)) +
+    geom_line(data=filter(df, bold=="T"), mapping=aes({{x}}, {{y}}, group=model, color=grouping, size=bold)) +
+    geom_point(data=filter(df, bold=="T"), mapping=aes({{x}}, {{y}}, group=model, color=grouping, size=bold)) +
+    scale_size_manual(values = c("T"=1.25, "F"=0.85)) +
+    scale_x_date(date_labels="%b-%y", breaks = df$x, date_breaks ="3 months", date_minor_breaks ="1 month") +
+    geom_vline(xintercept = as.numeric(stop_date), linetype=4, size=1.05) +
+    scale_colour_manual(name="",
+                        values = c("COVIDhub-baseline"="#762a83",
+                                   "COVIDhub-4_week_ensemble"="#1b7837",
+                                   "Other teams"="grey80"),
+                        labels=c("Other teams", "COVIDhub-baseline", "COVIDhub-4_week_ensemble"),
+                        breaks=c("Other teams", "COVIDhub-baseline", "COVIDhub-4_week_ensemble")) +
+    guides(size = "none") + 
+    theme_bw() +
+    theme(legend.position = "none", 
+          axis.title.x = element_blank())
+}
+
+###########################################################################
+############################################################################
+
+### WIS Over time
+load("C:/Users/oko8/OneDrive - CDC/COVID/Forecasts/Data/WIS_all horizons_non large counties_all subs.rdata")
+
+## National
+WIS_ot <-WIS.ot.fig_dat(WIS_all) %>%
+  rename_counts() #%>%
+  #mutate(abWIS=ifelse(abWIS=="NaN", NA, abWIS))
+WIS <-ot.plot(WIS_ot, date, abWIS)  +
+  facet_wrap(~ pop_size_quant2, ncol = 1) +
+  scale_y_continuous(trans='log10') +
+  theme(axis.title.x=element_blank(),
+        legend.position = c(0.25, 0.94),legend.title = element_blank(),
+        legend.justification = c(0, 0.5), 
+        legend.margin=margin(c(0.025,0.025,0.025,0.025)),
+        legend.key = element_rect(colour = NA, fill = NA), 
+        strip.background = strip.background_standard, strip.text = strip.text_standard) +
+  labs(title="A. Average Weighted Interval Score for County Forecasts",
+       x = "Forecast target date",
+       y = "Average Weighted Interval Score") 
+
+############################################################################
+############################################################################
+
+### Coverage Over time
+load("C:/Users/oko8/OneDrive - CDC/COVID/Forecasts/Data/cases_non large counties_forecasts_for analysis_2022-08-18.Rdata")
+
+cov_ot <-cov.ot.fig_dat(dat_other_count) %>%
+  rename_counts() 
+cov <-ot.plot(cov_ot, target_end_date, cov.95)  +
+  geom_hline(yintercept = 0.95,  linetype=6, size=1.05) +
+  facet_wrap(~ pop_size_quant2, ncol = 1) +
+  #theme(axis.title.x=element_blank()) +  
+  labs(title="B. 95% Coverage for County Forecasts",
+       x = "Forecast target date",
+       y = "95% Coverage") + 
+  theme(axis.text.y=element_text(angle=90, vjust=0.5, hjust=0.5),
+        strip.background = strip.background_standard, strip.text = strip.text_standard)
+
+
+############################################################################
+############################################################################
+
+grid.arrange(WIS, cov,
+             ncol=2)
+
+```
+
+####  Coverage.
+
+```{r Fig S3.2, echo=FALSE, warning=F, message=F, fig.height=8.5, fig.width=9}
+
+# Read in and manipulate data + plot structure
+cov.fig_dat <-function(df) {
+  coverage <-df %>%
+    coverage(df=.) %>%
+    group_by(model, pop_size_quant2) %>%
+    summarize(coverage.95=mean(coverage.95),
+              coverage.80=mean(coverage.80),
+              coverage.50=mean(coverage.50)) %>%
+    gather("expected_cov", "observed_cov", coverage.95:coverage.50) %>%
+    mutate(expected_cov=gsub("coverage.", "", expected_cov),
+           expected_cov=as.numeric(expected_cov),
+           expected_cov=expected_cov/100,
+           bold=ifelse(model=="COVIDhub-baseline" | model=="COVIDhub-4_week_ensemble", "T", "F"),
+          grouping=ifelse(model=="COVIDhub-baseline", "COVIDhub-baseline", 
+                           ifelse(model=="COVIDhub-4_week_ensemble", "COVIDhub-4_week_ensemble", "Other teams")))
+  return(coverage)
+}
+data_labels <-function(df) {
+  
+  ensemble_cov <-df%>%
+    filter(model=="COVIDhub-4_week_ensemble")
+  
+  data_labels <-df %>%  
+    filter(model!="COVIDhub-4_week_ensemble") %>%
+    mutate(test_95=ifelse(expected_cov==0.95 & observed_cov > ensemble_cov$observed_cov[ensemble_cov$expected_cov==0.95], 1, NA),
+           test_80=ifelse(expected_cov==0.80 & observed_cov > ensemble_cov$observed_cov[ensemble_cov$expected_cov==0.80], 1, NA),
+           test_50=ifelse(expected_cov==0.50 & observed_cov > ensemble_cov$observed_cov[ensemble_cov$expected_cov==0.50], 1, NA)) %>%
+    filter(!is.na(test_95) | !is.na(test_80) | !is.na(test_50)) %>%
+    group_by(model) %>%
+    mutate(model_count=n()) %>%
+    filter(model_count==3 & expected_cov==0.95) %>%
+    mutate(model=ifelse(model=="JHU_UNC_GAS-StatMechPool", "JHU_UNC_GAS\n-StatMechPool", model)) %>%
+    mutate(model=ifelse(model=="MOBS-GLEAM_COVID", "MOBS-GLEAM_\nCOVID", model)) %>%
+    mutate(model=ifelse(model=="IEM_MED-CovidProject", "IEM_MED\n-CovidProject", model)) %>%
+    mutate(model=ifelse(model=="COVIDhub-trained_ensemble", "COVIDhub\n-trained\n_ensemble", model)) %>%
+  return(data_labels)
+  }
+cov.plot <-function(df, df2) {
+  ggplot(df) +
+    geom_line(data=filter(df, bold=="F"), 
+              mapping=aes(expected_cov, observed_cov, group=model, color=grouping, size=bold, alpha=0.75)) +
+    geom_point(data=filter(df, bold=="F"), 
+               mapping=aes(expected_cov, observed_cov, group=model, color=grouping), size=1.5) +
+    geom_line(data=filter(df, bold=="T"), 
+              mapping=aes(expected_cov, observed_cov, group=model, color=grouping, size=bold, alpha=0.75)) +
+    geom_point(data=filter(df, bold=="T"), 
+               mapping=aes(expected_cov, observed_cov, group=model, color=grouping), size=3) +
+    geom_line(aes(expected_cov, expected_cov, color=grouping, group=model), linetype="dashed", size=1.5, color="black") +
+    scale_size_manual(values = c("T"=1.5, "F"=0.85)) +
+    scale_colour_manual(values = c("COVIDhub-baseline"="#762a83",
+                                   "COVIDhub-4_week_ensemble"="#1b7837",
+                                   "Other teams"="grey70"),
+                        labels=c("Other teams", "COVIDhub-baseline", "COVIDhub-4_week\n_ensemble"),
+                        breaks=c("Other teams", "COVIDhub-baseline", "COVIDhub-4_week_ensemble")) +
+    guides(size = "none", alpha="none") +
+    labs(y="Observed Coverage") +
+    theme_bw()  + 
+    theme(legend.position = "none", 
+          axis.title.x = element_blank()) +
+    geom_text_repel(data=df2,
+                    mapping=aes(expected_cov, observed_cov, label=model), size=3,
+                    force=1, point.padding=unit(0.5,'lines'), nudge_x =0.1,
+                    segment.size= 0.05,  segment.color="grey50",
+                    direction="y", #hjust = "right",
+                    vjust=0.5) +
+    scale_x_continuous(expand = expansion(mult = c(0.05, 0.25)))
+}
+
+# Figures
+
+# All Counties
+coverage_count1 <-cov.fig_dat(filter(dat_other_count, pop_size_quant2==1, sub_date <= stop_date))
+labels_count1 <-data_labels(coverage_count1) 
+
+p1 <-cov.plot(coverage_count1, labels_count1) +
+  labs(title="County Forecasts: Size Quantile 1") +
+  theme(legend.position = c(0.02, 0.88), legend.title = element_blank(),
+        legend.justification = c(0, 0.5), 
+        legend.margin=margin(c(0.5,1,1,1)),
+        legend.key = element_rect(colour = NA, fill = NA)) 
+
+
+coverage_count2 <-cov.fig_dat(filter(dat_other_count, pop_size_quant2==2, sub_date <= stop_date))
+labels_count2 <-data_labels(coverage_count2) 
+p2 <-cov.plot(coverage_count2, labels_count2) +
+  labs(title="County Forecasts: Size Quantile 2", 
+       y="") 
+
+coverage_count3 <-cov.fig_dat(filter(dat_other_count, pop_size_quant2==3, sub_date <= stop_date))
+labels_count3 <-data_labels(coverage_count3) 
+p3 <-cov.plot(coverage_count3, labels_count3) +
+  labs(title="County Forecasts: Size Quantile 3",
+       x="Expected Coverage") 
+
+  
+coverage_count4 <-cov.fig_dat(filter(dat_other_count, pop_size_quant2==4, sub_date <= stop_date))
+labels_count4 <-data_labels(coverage_count4) 
+p4 <-cov.plot(coverage_count4, labels_count4) +
+  labs(title="County Forecasts: Size Quantile 4",
+       y="",
+       x="Expected Coverage") 
+
+grid.arrange(p1, p2, p3, p4,
+              ncol=2)
+
+```

@@ -1,0 +1,191 @@
+---
+title: "Supplement 6"
+author: "VKL"
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+output:
+  html_document:
+    keep_md: yes
+---
+
+```{r setup, include=FALSE} 
+knitr::opts_chunk$set(warning=FALSE,message=FALSE) 
+
+library(tidyverse)
+library(tidytext)
+library(ggrepel)
+
+library(gridExtra)
+
+library(scoringutils)
+library(viridis)
+
+library(ggeffects)
+library(emmeans)
+library(splines)
+
+library(grid)
+
+setwd("C:/Users/oko8/OneDrive - CDC/COVID/Forecasts")
+
+## Standardized formatting
+strip.background_standard <-element_blank()
+strip.text_standard <-element_text(size=10, face='bold')
+legend.text_standard <-element_text(size=12)
+plot.caption_standard <-element_text(size=11, face = "italic")
+axis.title.y_standard <-element_text(margin = margin(1, 10, 1, 1), size=12)
+axis.text_standard <-element_text(size=11)
+
+## Function for setting up legends in empty facet spaces
+library(gtable)
+library(cowplot)
+
+shift_legend <- function(p){
+
+  # check if p is a valid object
+  if(!"gtable" %in% class(p)){
+    if("ggplot" %in% class(p)){
+      gp <- ggplotGrob(p) # convert to grob
+    } else {
+      message("This is neither a ggplot object nor a grob generated from ggplotGrob. Returning original plot.")
+      return(p)
+    }
+  } else {
+    gp <- p
+  }
+
+  # check for unfilled facet panels
+  facet.panels <- grep("^panel", gp[["layout"]][["name"]])
+  empty.facet.panels <- sapply(facet.panels, function(i) "zeroGrob" %in% class(gp[["grobs"]][[i]]))
+  empty.facet.panels <- facet.panels[empty.facet.panels]
+  if(length(empty.facet.panels) == 0){
+    message("There are no unfilled facet panels to shift legend into. Returning original plot.")
+    return(p)
+  }
+
+  # establish extent of unfilled facet panels (including any axis cells in between)
+  empty.facet.panels <- gp[["layout"]][empty.facet.panels, ]
+  empty.facet.panels <- list(min(empty.facet.panels[["t"]]), min(empty.facet.panels[["l"]]),
+                             max(empty.facet.panels[["b"]]), max(empty.facet.panels[["r"]]))
+  names(empty.facet.panels) <- c("t", "l", "b", "r")
+
+  # extract legend & copy over to location of unfilled facet panels
+  guide.grob <- which(gp[["layout"]][["name"]] == "guide-box")
+  if(length(guide.grob) == 0){
+    message("There is no legend present. Returning original plot.")
+    return(p)
+  }
+  gp <- gtable_add_grob(x = gp,
+                        grobs = gp[["grobs"]][[guide.grob]],
+                        t = empty.facet.panels[["t"]],
+                        l = empty.facet.panels[["l"]],
+                        b = empty.facet.panels[["b"]],
+                        r = empty.facet.panels[["r"]],
+                        name = "new-guide-box")
+
+  # squash the original guide box's row / column (whichever applicable)
+  # & empty its cell
+  guide.grob <- gp[["layout"]][guide.grob, ]
+  if(guide.grob[["l"]] == guide.grob[["r"]]){
+    gp <- gtable_squash_cols(gp, cols = guide.grob[["l"]])
+  }
+  if(guide.grob[["t"]] == guide.grob[["b"]]){
+    gp <- gtable_squash_rows(gp, rows = guide.grob[["t"]])
+  }
+  gp <- gtable_remove_grobs(gp, "guide-box")
+
+  return(gp)
+}
+
+```
+
+## Supplemental Figures
+
+### Supplement 6
+
+```{r echo=FALSE, warning=F, message=F}
+
+load("C:/Users/oko8/OneDrive - CDC/COVID/Forecasts/Data/WIS_gee.Rdata") # data
+load("C:/Users/oko8/OneDrive - CDC/COVID/Forecasts/Code/model_caseslogstd_noint_gee.rda")
+
+WIS_gee <-WIS_gee %>%
+  group_by(model) %>%
+  mutate(WIS_log_std=(log(interval_score)-mean(log(interval_score)))/sd(log(interval_score)),
+         cases_log_std=(log(true_value)-mean(log(true_value)))/sd(log(true_value))
+  ) %>%
+  ungroup()
+
+team <-c(unique(as.character(WIS_gee$model))) 
+dat_team <-list()
+means_sds <-list()
+marg_means <-list()
+
+# Model Predictions 
+for(i in 1:length(team)){
+  
+  dat_team[[i]] <-as.data.frame(WIS_gee %>%
+                                  filter(model==team[i]) %>%
+                                  mutate(model=droplevels(model)) %>%
+                                  ungroup())
+  
+  
+  means_sds[[i]] <-dat_team[[i]] %>%
+    mutate(mean_log_WIS=mean(log(interval_score)),
+           sd_log_WIS=sd(log(interval_score)),
+           mean_log_cases=mean(log(true_value)),
+           sd_log_cases=sd(log(true_value))
+    ) %>%
+    dplyr::select(model, contains("mean_"), contains("sd_")) %>%
+    distinct()
+                                      
+  marg_means[[i]] <-ggemmeans(model[[i]], terms=c("phase_all", "cases_log_std[-1.96:1.96]")) %>%
+    rename(phase_all=x,
+           cases=group) %>% 
+    mutate(model=team[i],
+           predicted_back=(predicted*means_sds[[i]]$sd_log_WIS) + means_sds[[i]]$mean_log_WIS,
+           predicted_back_lo=(conf.low*means_sds[[i]]$sd_log_WIS) + means_sds[[i]]$mean_log_WIS,
+           predicted_back_up=(conf.high*means_sds[[i]]$sd_log_WIS) + means_sds[[i]]$mean_log_WIS,
+           cases=as.numeric(as.character(cases)),
+           cases_log_back=(cases*means_sds[[i]]$sd_log_cases) + means_sds[[i]]$mean_log_cases) %>%
+    mutate(predicted_back_rescale=exp(predicted_back),
+           predicted_back_lo_rescale=exp(predicted_back_lo),
+           predicted_back_up_rescale=exp(predicted_back_up),
+           cases_back_rescale=exp(cases_log_back))
+}
+marg_means <-do.call(rbind.data.frame, marg_means)
+
+marg_means <-marg_means %>%
+  
+  mutate(model=as.factor(model)) %>%
+  mutate(phase_all=as.factor(ifelse(phase_all=="increasing", "Increasing",
+                                    ifelse(phase_all=="decreasing", "Decreasing",
+                                           ifelse(phase_all=="peak", "Peak", "Nadir")))),
+         phase_all=factor(phase_all, 
+                          levels = c("Increasing", "Peak", "Decreasing",  "Nadir"))
+  ) 
+
+  
+# Figure
+FigS6 <-marg_means %>%
+  ggplot(., aes(cases_back_rescale, predicted_back_rescale)) +
+  geom_line(aes(color=phase_all)) +
+  geom_ribbon(aes(ymin=predicted_back_lo_rescale, ymax=predicted_back_up_rescale, fill=phase_all), alpha=0.35) +
+  scale_fill_manual(breaks = c("Increasing", "Decreasing", "Unclassified", "Peak", "Nadir"), 
+                      values=c("#fdae61", "#abdda4", "#bababa", "#d7191c", "#2b83ba")) +
+  scale_color_manual(breaks = c("Increasing", "Decreasing", "Unclassified", "Peak", "Nadir"), 
+                      values=c("#fdae61", "#abdda4", "#bababa", "#d7191c", "#2b83ba")) +
+  labs( y="Marginal Mean \nWeighted Interval Score", x="Reported cases") +
+  facet_wrap(~model) +
+  theme_bw() +
+  theme(axis.title.y=axis.title.y_standard,
+        legend.title = element_blank(), legend.text=legend.text_standard,
+        strip.text=strip.text_standard, strip.background=strip.background_standard,
+        axis.text.x = element_text(angle = 45, hjust=1)) +
+  guides(fill=guide_legend(nrow=2, byrow=TRUE))
+
+```
+
+```{r Fig s6, echo=FALSE, warning=F, message=F, fig.height=8, fig.width=11.5}
+
+grid.draw(shift_legend(FigS6))
+
+```

@@ -1,0 +1,904 @@
+---
+title: "Inc COVID-19 Case Forecast Eval: Results"
+author: "VKL"
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+output:
+  html_document:
+    keep_md: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning=FALSE,message=FALSE) 
+
+library(tidyverse)
+library(tidytext)
+library(ggrepel)
+
+library(gridExtra)
+library(cowplot)
+library(ggpubr)
+library(scales)
+
+library(scoringutils)
+library(viridis)
+
+library(ggeffects)
+library(emmeans)
+library(splines)
+
+setwd("C:/Users/oko8/OneDrive - CDC/COVID/Forecasts")
+cut_date <-as.Date("2021-12-21")
+
+### Need functions
+source("C:/Users/oko8/OneDrive - CDC/COVID/Forecasts/Code/Inc_Case_Eval_Manuscript/coverage.R") #coverage
+
+## Standardized formatting
+strip.background_standard <-element_blank()
+strip.text_standard <-element_text(size = 12, face='bold')
+legend.text_standard <-element_text(size=12)
+plot.caption_standard <-element_text(size=10, face = "italic")
+axis.title.y_standard <-element_text(margin = margin(1, 10, 1, 1), size=12)
+axis.text_standard <-element_text(size=11)
+
+```
+
+## Main Text Figures
+
+### Figure 1. Select ensemble forecasts
+
+```{r Fig1, echo=FALSE, warning=F, message=F, fig.height=6.5, fig.width=6.5}
+### Reported cases over time
+source("C:/Users/oko8/OneDrive - CDC/COVID/Forecasts/Code/Inc_Case_Eval_Manuscript/reported cases.R") #reported cases
+obs_data <-rd_obs() %>%
+  filter(nchar(location) < 3) %>%
+  filter(date <= (cut_date+4)+(7*3)) %>%
+  mutate(true_value=ifelse(true_value <=0, NA, true_value),
+         true_value.pop=ifelse(is.na(true_value), NA, true_value.pop)) 
+
+Fig1.A <-ggplot() +
+  geom_line(data=filter(obs_data, grouping=="State/Territory/DC"), 
+            mapping=(aes(date, true_value.pop, group=location_name, color=grouping)), size=0.85) +
+  scale_x_date(date_labels="%b-%y", breaks = obs_data$date, date_breaks ="3 months", date_minor_breaks ="1 month") +
+  geom_line(data=filter(obs_data, grouping=="National"), 
+            mapping=(aes(date, true_value.pop, group=location_name, color=grouping)), size=1.25) +
+  geom_vline(xintercept = as.numeric(cut_date),  linetype=4, size=1.05) +
+  scale_colour_manual(name="",
+                      values = c("National"="black",
+                                 "State/Territory/DC"="grey75")) +
+  labs(title = "A. Reported Cases Per 100K Population",
+       y = "Incident COVID-19 Cases") +
+  theme_bw() +
+  theme(axis.title.x=element_blank(),
+        legend.position = c(0.02, 0.82),legend.title = element_blank(),
+        legend.justification = c(0, 0.5), 
+        legend.margin=margin(c(0.5,1,1,1)),
+        legend.key = element_rect(colour = NA, fill = NA)) + theme(axis.text.y=element_text(angle=90, vjust=0.5, hjust=0.5))
+
+load("C:/Users/oko8/OneDrive - CDC/COVID/Forecasts/Data/cases_nat_state_forecasts_for analysis_2022-08-18.Rdata")
+
+cast_dates <-dat_US_state %>% 
+  filter(model=="COVIDhub-4_week_ensemble") %>% 
+  ungroup() %>% 
+  dplyr::select(sub_date) %>% 
+  unique() %>% 
+  arrange() %>%
+  slice(which(row_number() %% 6 == 1))
+  
+Fig1.B <-dat_US_state %>%
+  filter(sub_date <= cut_date) %>%
+  filter(location=="US", 
+         model=="COVIDhub-4_week_ensemble") %>% 
+  filter(sub_date %in% cast_dates$sub_date) %>%
+  mutate(value = case_when(quantile==0.5 ~ round(value),
+                             quantile<0.5 ~ floor(value),
+                             quantile>0.5 ~ ceiling(value),
+                             type=='point' ~ round(value)), 
+         model=as.factor(model), 
+         model=droplevels(model)) %>% 
+  pivot_wider(names_from = c(type, quantile), values_from=value) %>%
+  rename(point = point_NA) %>% 
+  ungroup() %>%
+  ggplot(.) +
+  geom_line(data=filter(obs_data, grouping=="National"), mapping=aes(x=date, y=true_value), color="grey85") +
+  geom_point(data=filter(obs_data, grouping=="National"), mapping=aes(x=date, y=true_value), color="grey75") +
+  geom_line(aes(target_end_date, point, group=interaction(sub_date, model), color=model), size=1.05) + 
+  geom_point(aes(target_end_date, point, color=model), size=1.25) +
+  geom_ribbon(aes(x=target_end_date, ymin=quantile_0.025, ymax=quantile_0.975,
+                  fill=model, group=interaction(sub_date, model)), alpha=0.25) +
+  geom_vline(xintercept = as.numeric(cut_date),  linetype=4, size=1.05) +
+  scale_colour_manual(name="",
+                      values = c("COVIDhub-4_week_ensemble"="#1b7837")) +
+  scale_fill_manual(name="",
+                    values = c("COVIDhub-4_week_ensemble"="#1b7837")) +
+   scale_x_date(date_labels="%b-%y", breaks = obs_data$date, date_breaks ="3 months", date_minor_breaks ="1 month") +
+  labs(title="B. Select National forecasts",
+       y="Incident COVID-19 Cases") +
+  theme_bw() +
+  theme(axis.title.x = element_blank(), axis.text.y=element_text(angle=90, vjust=0.5, hjust=0.5),
+        legend.title = element_blank(), legend.position = c(0.20, 0.82)) + scale_y_continuous(label=comma,
+                                                                                               breaks=pretty_breaks(2))
+plot_grid(Fig1.A, Fig1.B,
+          nrow=2)
+
+```
+
+Figure 2. 95% coverage and relWIS  and submissions per team
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+
+## WIS estimates
+
+mean_WIS <-function() {
+  load("C:/Users/oko8/OneDrive - CDC/COVID/Forecasts/Data/WIS_all horizons_nat_state.rdata")
+  
+  ## National
+  WIS_nat <-WIS_all %>%
+    ungroup() %>%
+    filter(location_name=="National") %>%
+    summarise_scores(by = c("model"),
+                     metric="interval_score",
+                     relative_skill = TRUE,
+                     baseline = "COVIDhub-baseline") %>%
+    dplyr::select(model, scaled_rel_skill) %>%
+    mutate(model_reorder=model) %>%
+    rename(`National Forecasts`=scaled_rel_skill) 
+  WIS_nat <-WIS_nat[, c(1, 3, 2)]
+  
+  ## State/Territory/District 
+  WIS_state <-WIS_all %>%
+    filter(location_name!="National") %>% 
+    summarise_scores(by = c("model"),
+                     metric="interval_score",
+                     relative_skill = TRUE,
+                     baseline = "COVIDhub-baseline") %>%
+    dplyr::select(model, scaled_rel_skill) %>%
+    rename(`State/Territory/DC Forecasts`=scaled_rel_skill) %>%
+    mutate(model_reorder=fct_reorder(model, `State/Territory/DC Forecasts`)) 
+  
+  WIS_levels <-levels(WIS_state$model_reorder)
+  
+  mean_WIS <-WIS_state %>%
+    
+    full_join(., WIS_nat) %>% 
+    mutate(model_reorder=factor(model, levels = WIS_levels)) %>%
+    arrange(`State/Territory/DC Forecasts`) %>% 
+    gather(key, value, -model, -model_reorder) %>%
+    mutate(key=factor(key, levels = c("National Forecasts", 
+                                      "State/Territory/DC Forecasts"))) %>% 
+      mutate(value_display=format(round(value, digits=2), nsmall = 2),
+             value_display=ifelse(value_display=="  NA", NA, value_display))
+    
+  
+  }
+mean_WIS <-mean_WIS()
+mean_WIS$model_reorder <-fct_rev(mean_WIS$model_reorder)
+mean_WIS$key <-fct_rev(mean_WIS$key)
+levels_model <-levels(mean_WIS$model_reorder)
+levels_key <-levels(mean_WIS$key)
+
+WIS.heatmap <-mean_WIS %>%
+  ggplot(., aes(key, model_reorder)) +
+  geom_tile(aes(fill=value)) +
+  geom_text(aes(label=value_display), size=3.5) +
+  scale_fill_gradient2(low = "steelblue", high = "red", midpoint = 1.0, na.value = "grey75") + 
+  scale_x_discrete(labels = function(x) str_wrap(x, width=15)) +
+  theme_bw() +
+  labs(fill="Relative Weighted Interval Score") +
+  theme(axis.title.x = element_blank(), 
+        axis.title.y = element_blank(), axis.text.y=element_blank(),
+        axis.text=axis.text_standard,
+        legend.position="bottom") 
+
+
+############################################################################
+############################################################################
+
+### Coverage estimates
+
+cov.95 <-function() {
+  
+  load("C:/Users/oko8/OneDrive - CDC/COVID/Forecasts/Data/cases_nat_state_forecasts_for analysis_2022-08-18.Rdata")
+
+  coverage_US <- dat_US_state %>%
+    filter(sub_date <= cut_date) %>%
+    filter(location=="US") %>%
+    coverage(df=.) %>%
+    group_by(model) %>%
+    summarize(`National Forecasts`=mean(coverage.95))
+  
+  ## State/Territory/District 
+  coverage_state <- dat_US_state %>%
+    filter(sub_date <= cut_date) %>%
+    filter(location!="US") %>%
+    coverage(df=.) %>%
+    group_by(model) %>%
+    summarize(`State/Territory/DC Forecasts`=mean(coverage.95))
+  
+  cov.95 <-coverage_US %>%
+    full_join(., coverage_state, by="model") %>%
+    gather(key, value, -model) %>%
+    mutate(cov_diff=abs(0.95-value)) %>%
+    mutate(value_display=format(round(value, digits=2), nsmall = 2),
+           value_display=ifelse(value_display=="  NA", NA, value_display))
+}
+
+cov.95 <-cov.95() %>%
+  mutate(model_reorder=factor(model, levels=levels_model), 
+         key=factor(key, levels=levels_key))
+
+cov.heatmap <-cov.95 %>%
+  ggplot(., aes(key, model_reorder)) +
+  geom_tile(aes(fill=value)) +
+  geom_text(aes(label=value_display), size=3.5) +
+  scale_fill_gradient2(low = "white", mid = "#f7fcb9", high = "#31a354", midpoint = 0.75, na.value = "grey75") +
+  scale_x_discrete(labels = function(x) str_wrap(x, width=15)) +
+  theme_bw() +
+  labs(fill="95% Coverage") +
+  theme(axis.title.x = element_blank(), #axis.text.x = element_text(angle = 45, hjust=1),
+        axis.title.y = element_blank(), axis.text.y=element_blank(),
+        axis.text=axis.text_standard,
+        legend.position="bottom")
+
+############################################################################
+############################################################################
+
+### Submissions over time
+
+submissions <-function(df) {
+  
+  start_date <-as.Date("2020-07-28")
+  stop_date <-as.Date("2022-02-22")
+  
+  df <-df %>%
+    filter(sub_date >= start_date & sub_date <= cut_date) %>% #stop_date) %>%
+    dplyr::select(forecast_date, model, location, target, sub_date) %>%
+    distinct() %>%
+    dplyr::select(-target) %>%
+    distinct() %>%
+    group_by(sub_date, model) %>%
+    summarize(locs=n()) %>%
+    ungroup() %>%
+    mutate(total_sub=length(unique(sub_date))) %>%
+    group_by(model) %>%
+    mutate(wks_sub=length(sub_date),
+           per_sub=(wks_sub/total_sub)) %>%
+    ungroup() %>%
+  dplyr::select(-locs, -sub_date) %>%
+  distinct()
+  
+  return(df)
+  
+}
+
+all_dat <-function(){
+  
+  load("C:/Users/oko8/OneDrive - CDC/COVID/Forecasts/Data/cases_nat_state_forecasts_2021-03-13.Rdata")
+  load("C:/Users/oko8/OneDrive - CDC/COVID/Forecasts/Data/cases_nat_state_forecasts_2022-03-21.Rdata")
+  
+  all_dat <-all_dat %>%
+    bind_rows(., all_dat_updated) %>%
+    mutate(model=ifelse(sub_date < "2021-03-16" & model=="COVIDhub-ensemble", "COVIDhub-4_week_ensemble", model))
+}
+all_dat <-all_dat()
+subs_nat <-submissions(df=filter(all_dat, location=="US")) %>% 
+  filter(model %in% mean_WIS$model[mean_WIS$key=="National Forecasts" & !is.na(mean_WIS$value)]) %>%
+  mutate(key="National Forecasts")
+subs_state <-submissions(df=filter(all_dat, location!="US")) %>% 
+  filter(model %in% mean_WIS$model[mean_WIS$key=="State/Territory/DC Forecasts"]) %>%
+  mutate(key="State/Territory/DC Forecasts")
+
+missings <-mean_WIS %>%
+  filter(is.na(value)) %>%
+  rename(per_sub=value)
+
+all_subs <-subs_nat %>%
+  bind_rows(., subs_state) %>% 
+  mutate(model_reorder=factor(model, levels=levels_model), 
+         key=factor(key, levels=levels_key),
+         value_display=format(round(per_sub, digits=2), nsmall = 2),
+         value_display=ifelse(value_display=="  NA", NA, value_display)) %>%
+  bind_rows(., missings) %>%
+  ggplot(., aes(key, model_reorder)) +
+  geom_tile(aes(fill=per_sub)) +
+  geom_text(aes(label=value_display), size=3.5) +
+  scale_fill_gradient(low = "#fde0dd", high = "#c51b8a", na.value = "grey75") +
+  scale_x_discrete(labels = function(x) str_wrap(x, width=15)) +
+  theme_bw() +
+  labs(fill="% Weeks \nSubmitted") +
+  theme(axis.title.x = element_blank(), 
+        axis.title.y = element_blank(), 
+        axis.text=axis.text_standard,
+        legend.position="bottom")
+
+############################################################################
+############################################################################
+
+```
+
+``` {r Fig 2, echo=FALSE, warning=FALSE, message=FALSE, fig.height=10, fig.width=12}
+
+plot_grid(all_subs, WIS.heatmap, cov.heatmap,
+          nrow=1, 
+          rel_widths = c(1, 0.6, 0.6))
+
+```
+
+### Figure 3. Coverage.
+
+```{r echo=FALSE, warning=F, message=F, fig.show='hide'}
+
+# Read in and manipulate data + plot structure
+cov.fig_dat <-function(df) {
+  coverage <-df %>%
+    coverage(df=.) %>%
+    group_by(model) %>%
+    summarize(coverage.95=mean(coverage.95),
+              coverage.80=mean(coverage.80),
+              coverage.50=mean(coverage.50)) %>%
+    gather("expected_cov", "observed_cov", coverage.95:coverage.50) %>%
+    mutate(expected_cov=gsub("coverage.", "", expected_cov),
+           expected_cov=as.numeric(expected_cov),
+           expected_cov=expected_cov/100,
+           bold=ifelse(model=="COVIDhub-baseline" | model=="COVIDhub-4_week_ensemble", "T", "F"),
+          grouping=ifelse(model=="COVIDhub-baseline", "COVIDhub-baseline", 
+                           ifelse(model=="COVIDhub-4_week_ensemble", "COVIDhub-4_week_ensemble", "Other teams")))
+  return(coverage)
+}
+data_labels <-function(df) {
+  
+  ensemble_cov <-df%>%
+    filter(model=="COVIDhub-4_week_ensemble")
+  
+  data_labels <-df %>%  
+    filter(model!="COVIDhub-4_week_ensemble") %>%
+    mutate(test_95=ifelse(expected_cov==0.95 & observed_cov > ensemble_cov$observed_cov[ensemble_cov$expected_cov==0.95], 1, NA),
+           test_80=ifelse(expected_cov==0.80 & observed_cov > ensemble_cov$observed_cov[ensemble_cov$expected_cov==0.80], 1, NA),
+           test_50=ifelse(expected_cov==0.50 & observed_cov > ensemble_cov$observed_cov[ensemble_cov$expected_cov==0.50], 1, NA)) %>%
+    filter(!is.na(test_95) | !is.na(test_80) | !is.na(test_50)) %>%
+    group_by(model) %>%
+    mutate(model_count=n()) %>%
+    filter(model_count==3 & expected_cov==0.95) %>%
+    mutate(model=ifelse(model=="JHU_UNC_GAS-StatMechPool", "JHU_UNC_GAS\n-StatMechPool", model)) %>%
+    mutate(model=ifelse(model=="MOBS-GLEAM_COVID", "MOBS-GLEAM_\nCOVID", model)) %>%
+     mutate(model=ifelse(model=="IEM_MED-CovidProject", "IEM_MED\n-CovidProject", model)) %>%
+  return(data_labels)
+  }
+cov.plot <-function(df, df2) {
+  ggplot(df) +
+    geom_line(data=filter(df, bold=="F"), 
+              mapping=aes(expected_cov, observed_cov, group=model, color=grouping, size=bold, alpha=0.75)) +
+    geom_point(data=filter(df, bold=="F"), 
+               mapping=aes(expected_cov, observed_cov, group=model, color=grouping), size=1.5) +
+    geom_line(data=filter(df, bold=="T"), 
+              mapping=aes(expected_cov, observed_cov, group=model, color=grouping, size=bold, alpha=0.75)) +
+    geom_point(data=filter(df, bold=="T"), 
+               mapping=aes(expected_cov, observed_cov, group=model, color=grouping), size=3) +
+    geom_line(aes(expected_cov, expected_cov, color=grouping, group=model), linetype="dashed", size=1.5, color="black") +
+    scale_size_manual(values = c("T"=1.5, "F"=0.85)) +
+    scale_colour_manual(values = c("COVIDhub-baseline"="#762a83",
+                                   "COVIDhub-4_week_ensemble"="#1b7837",
+                                   "Other teams"="grey75"),
+                        labels=c("Other teams", "COVIDhub-baseline", "COVIDhub-4_week_ensemble"),
+                        breaks=c("Other teams", "COVIDhub-baseline", "COVIDhub-4_week_ensemble")) +
+    guides(size = "none", alpha="none") +
+    labs(y="Observed Coverage") +
+    theme_bw()  + 
+    theme(legend.position = "none", 
+          axis.title.x = element_blank()) +
+    geom_text_repel(data=df2,
+                    mapping=aes(expected_cov, observed_cov, label=model), size=3,
+                    force=1, point.padding=unit(0.5,'lines'), nudge_x =0.1,
+                    segment.size= 0.05,  segment.color="grey50",
+                    direction="y", #hjust = "right",
+                    vjust=0.5) +
+    scale_x_continuous(expand = expansion(mult = c(0.05, 0.25)))
+}
+
+# Figures
+load("C:/Users/oko8/OneDrive - CDC/COVID/Forecasts/Data/cases_nat_state_forecasts_for analysis_2022-08-18.Rdata")
+
+coverage_US <-cov.fig_dat(filter(dat_US_state, location=="US", sub_date <= cut_date))
+labels_US <-data_labels(coverage_US)
+Cov.Nat <-cov.plot(coverage_US, labels_US) +
+  theme(legend.position = c(0.02, 0.88), legend.title = element_blank(),
+        legend.justification = c(0, 0.5), 
+        legend.margin=margin(c(0.5,1,1,1)),
+        legend.key = element_rect(colour = NA, fill = NA)) +
+  labs(title="A. Coverage for National Forecasts")
+
+coverage_states <-cov.fig_dat(filter(dat_US_state, location!="US", sub_date <= cut_date))
+labels_states <-data_labels(coverage_states)
+Cov.State <-cov.plot(coverage_states, labels_states) +
+  labs(title="B. Coverage for National State/Territory/DC Forecasts")
+
+# Largest Counties
+load("C:/Users/oko8/OneDrive - CDC/COVID/Forecasts/Data/cases_large counties_forecasts_for analysis_2022-08-18.Rdata")
+coverage_count <-cov.fig_dat(filter(dat_large_count, sub_date <= cut_date))
+labels_count <-data_labels(coverage_count) 
+Cov.Co <-cov.plot(coverage_count, labels_count) +
+  labs(title="C. Coverage for Large County Forecasts*",
+       x="Expected Coverage")
+
+Fig3 <-annotate_figure(
+  grid.arrange(Cov.Nat, Cov.State, Cov.Co, ncol=1),
+  bottom = text_grob("*U.S. counties with a population of at least 93,230 people ", hjust=1, x=1, face = "italic", size = 10))
+
+```
+
+```{r Fig3, echo=FALSE, warning=F, message=F, fig.height=15, fig.width=6}
+
+Fig3
+
+```
+
+
+### Figure 4. Relative WIS Across Geospatial Units
+
+```{r Fig4, echo=FALSE, warning=F, message=F, fig.height=8, fig.width=6.5}
+
+# All counties
+relWIS_co <-function(){
+
+  load("C:/Users/oko8/OneDrive - CDC/COVID/Forecasts/Data/WIS_all horizons_large counties.rdata")
+
+  rel_WIS_large_co <-WIS_all %>%
+    summarise_scores(by = c("model"),
+                     metric="interval_score",
+                     relative_skill = TRUE,
+                     baseline = "COVIDhub-baseline") %>%
+    dplyr::select(model, scaled_rel_skill) %>%
+    distinct() %>%
+    mutate(geo_scale="County forecasts: Size Quantile 5 (Largest)")
+  
+  load("C:/Users/oko8/OneDrive - CDC/COVID/Forecasts/Data/WIS_all horizons_non large counties_all.Rdata")
+  rel_WIS_co <-WIS_all %>%
+    ungroup() %>%
+    summarise_scores(by = c("model", "pop_size_quant2"),
+                     metric="interval_score",
+                     relative_skill = TRUE,
+                     baseline = "COVIDhub-baseline") %>%
+    dplyr::select(model, scaled_rel_skill, pop_size_quant2) %>%
+    mutate(geo_scale=ifelse(pop_size_quant2==1, "County Forecasts: Size Quantile 1 (Smallest)",
+                            ifelse(pop_size_quant2==2, "County Forecasts: Size Quantile 2",
+                                   ifelse(pop_size_quant2==3, "County Forecasts: Size Quantile 3", "County Forecasts: Size Quantile 4" 
+                                          #"County forecasts: Size Quantile 5 (Largest)"
+                                          )))) %>%
+    dplyr::select(-pop_size_quant2) %>%
+    bind_rows(., rel_WIS_large_co)
+}
+relWIS_co <-relWIS_co()
+models_include_co <-relWIS_co %>%
+  filter(geo_scale=="County Forecasts: Size Quantile 1 (Smallest)") %>%
+  dplyr::select(model, geo_scale) %>%
+  distinct()
+
+# Merge
+models_include <-mean_WIS %>% 
+  dplyr::select(-value_display, 
+                -model_reorder) %>%
+  spread(key,value) %>%
+  drop_na()
+
+relWIS_all <-mean_WIS %>%
+  rename(scaled_rel_skill=value,
+         geo_scale=key) %>%
+  mutate(geo_scale=as.character(geo_scale)) %>% 
+  bind_rows(., relWIS_co) %>%
+  filter(model %in% models_include_co$model) %>%
+  mutate(model_reorder=factor(model, levels=levels_model))
+
+relWIS_all$geo_scale <-factor(relWIS_all$geo_scale, levels = c("County Forecasts: Size Quantile 1 (Smallest)", 
+                                                               "County Forecasts: Size Quantile 2", 
+                                                               "County Forecasts: Size Quantile 3", 
+                                                               "County Forecasts: Size Quantile 4", 
+                                                               "County forecasts: Size Quantile 5 (Largest)",
+                                                               "State/Territory/DC Forecasts", "National Forecasts"))
+
+# Colors
+my_colors <-viridis(6) 
+my_colors <-my_colors[-(6)] #removes the yellow color, which can be hard to see 
+my_colors <-c(my_colors, "#d01c8b", "#f1b6da")
+
+Fig4.B <-relWIS_all %>%
+  mutate(model_reorder = fct_rev(model_reorder)) %>%
+  filter(model!="COVIDhub-baseline") %>%
+  ggplot(., aes(model_reorder, scaled_rel_skill)) +
+  geom_hline(yintercept = 1, linetype="dashed") +
+  geom_point(aes(color=geo_scale), size=4, alpha=0.85, 
+             position = position_dodge(width = 0.2)) + 
+  scale_color_manual(values=my_colors) +
+  labs(y="Relative Weighted Interval Score" , 
+       ) +
+  theme_bw() +
+      theme(axis.text.x =element_text(size=11, angle = 45, hjust=1), axis.text=axis.text_standard,
+        axis.title.x = element_blank(), 
+        legend.margin=margin(c(0.25,0.25,0.25,0.25)),
+        legend.justification = c(0, 0.5),
+        legend.key = element_rect(colour = NA, fill = NA), 
+        legend.title = element_blank(),
+        legend.direction = "horizontal",
+        legend.position = "bottom", 
+        plot.caption = plot.caption_standard) +
+ scale_y_continuous(expand = expansion(mult = c(0.05, 0.05))) + guides(color=guide_legend(nrow=4, byrow=TRUE))
+
+Fig4.B
+
+```
+
+
+### Figure 5. RelWIS per state/territory
+
+```{r Fig5, echo=FALSE, warning=FALSE, message=FALSE, fig.height=10, fig.width=9}
+
+# Forecasts
+load("C:/Users/oko8/OneDrive - CDC/COVID/Forecasts/Data/WIS_all horizons_nat_state.Rdata")
+
+relWIS <-WIS_all %>%
+    summarise_scores(by = c("model", "location_name"),
+                     metric="interval_score",
+                     relative_skill = TRUE,
+                     baseline = "COVIDhub-baseline") %>%
+  mutate(scaled_rel_skill=round(scaled_rel_skill, 1),
+         log_WIS=log2(scaled_rel_skill),
+         location_name=as.character(location_name)) 
+
+Locations <-relWIS %>%
+  dplyr::select(location_name) %>%
+  distinct()
+
+Models <-relWIS %>%
+  dplyr::select(model) %>%
+  distinct()
+
+Locations_models <-crossing(Locations, Models) 
+relWIS <- Locations_models %>%
+  left_join(., relWIS) %>%
+  mutate(model_reorder=factor(model, levels=levels_model))
+
+# Reorder x and y axes
+relWIS$location_name <-as.factor(relWIS$location_name)
+relWIS$location_name <-relevel(relWIS$location_name, ref="National")
+relWIS$location_name <-fct_rev(relWIS$location_name)
+
+# Figure
+relWIS$model_reorder <-fct_rev(relWIS$model_reorder)
+ggplot(relWIS, aes(model_reorder, location_name)) +
+  geom_tile(aes(fill=log_WIS)) +
+  geom_text(aes(label=scaled_rel_skill), size=3) +
+  scale_fill_gradient2(low = "steelblue", high = "red", midpoint = 0, na.value = "grey75", 
+                       name = "Relative\nWeighted Interval Score", 
+                       breaks = c(-1,0,1,2), 
+                       labels =c("0.5", 1, 2, 3)) + 
+  theme_bw() +
+  labs(fill="Relative Weighted Interval Score") +
+  theme(axis.title.x = element_blank(), axis.text.x = element_text(angle = 45, hjust=1),
+        axis.title.y = element_blank(),
+        axis.text=axis.text_standard, plot.caption = plot.caption_standard)
+
+
+```
+
+### Figure 6. Absolute WIS and 95% coverage over time
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, fig.show='hide'}
+
+#options(scipen = 999)
+
+# Function for WIS over time
+WIS.ot.fig_dat <-function(df) {
+  
+  sub_date <-c(unique(df$sub_date))
+  model <-c(as.character(unique(df$model)))
+  model_dates <-crossing(sub_date, model)
+  
+  cast_dates <-df %>%
+    dplyr::select(sub_date, date) %>%
+    distinct() %>%
+    left_join(model_dates, by="sub_date")
+  
+  dat <-df %>%
+    full_join(cast_dates, ., by=c("model", "sub_date", "date")) %>%
+    mutate(bold=ifelse(model=="COVIDhub-baseline" | model=="COVIDhub-4_week_ensemble", "T", "F")) %>%
+    group_by(model, date, bold) %>%
+    summarize(abWIS=mean(interval_score, na.rm=TRUE)) %>%
+    ungroup() %>%
+    mutate(grouping=ifelse(model=="COVIDhub-baseline", "COVIDhub-baseline", 
+                           ifelse(model=="COVIDhub-4_week_ensemble", "COVIDhub-4_week_ensemble", "Other teams"))) #%>%
+  return(dat)
+
+}
+cov.ot.fig_dat <-function(df) {
+  
+  sub_date <-c(unique(df$sub_date))
+  model <-c(as.character(unique(df$model)))
+  model_dates <-crossing(sub_date, model)
+  
+  cov <-df %>%
+    group_by(model, target_end_date) %>%
+    coverage(df=.) %>%
+    summarize(cov.95=mean(coverage.95))
+
+  dat <-df %>%
+    dplyr::select(sub_date, target_end_date) %>%
+    distinct() %>%
+    left_join(., model_dates, by="sub_date") %>%
+    dplyr::select(-sub_date) %>%
+    left_join(., cov, by=c("model", "target_end_date")) %>%
+    distinct() %>%
+    ungroup() %>%
+    mutate(grouping=ifelse(model=="COVIDhub-baseline", "COVIDhub-baseline", 
+                           ifelse(model=="COVIDhub-4_week_ensemble", "COVIDhub-4_week_ensemble", "Other teams"))) %>%
+    mutate(bold=ifelse(model=="COVIDhub-baseline" | model=="COVIDhub-4_week_ensemble", "T", "F")) 
+  
+  return(dat)
+
+}
+ot.plot <-function(df, x, y) {
+  
+  ggplot() +
+    geom_line(data=filter(df, bold=="F"), mapping=aes({{x}}, {{y}}, group=model, color=grouping, size=bold)) +
+    geom_point(data=filter(df, bold=="F"), mapping=aes({{x}}, {{y}}, group=model, color=grouping, size=bold)) +
+    geom_line(data=filter(df, bold=="T"), mapping=aes({{x}}, {{y}}, group=model, color=grouping, size=bold)) +
+    geom_point(data=filter(df, bold=="T"), mapping=aes({{x}}, {{y}}, group=model, color=grouping, size=bold)) +
+    scale_size_manual(values = c("T"=1.25, "F"=0.85)) +
+    scale_x_date(date_labels="%b-%y", breaks = df$x, date_breaks ="3 months", date_minor_breaks ="1 month") +
+    geom_vline(xintercept = as.numeric(cut_date),  linetype=4, size=1.05) +
+    scale_colour_manual(name="",
+                        values = c("COVIDhub-baseline"="#762a83",
+                                   "COVIDhub-4_week_ensemble"="#1b7837",
+                                   "Other teams"="grey80"),
+                        labels=c("Other teams", "COVIDhub-baseline", "COVIDhub-4_week_ensemble"),
+                        breaks=c("Other teams", "COVIDhub-baseline", "COVIDhub-4_week_ensemble")) +
+    guides(size = "none") + 
+    theme_bw() +
+    theme(legend.position = "none", 
+          axis.title.x = element_blank())
+}
+
+###########################################################################
+############################################################################
+
+### WIS Over time
+load("C:/Users/oko8/OneDrive - CDC/COVID/Forecasts/Data/WIS_all horizons_nat_state.Rdata")
+
+## National
+WIS_ot_nat <-WIS.ot.fig_dat(filter(WIS_all, location_name=="National")) 
+Fig6.A <-ot.plot(WIS_ot_nat, date, abWIS)  +
+  theme(axis.title.x=element_blank(),
+        legend.position = c(0.02, 0.80),legend.title = element_blank(),
+        legend.justification = c(0, 0.5), 
+        legend.margin=margin(c(0.25,0.25,0.25,0.25)),
+        legend.key = element_rect(colour = NA, fill = NA)) +
+  labs(title="A. Average Weighted Interval Score for National Forecasts",
+       y = "Average Weighted Interval Score") +
+  scale_y_continuous(expand = expansion(mult = c(0.05, 0.35))) + theme(axis.text.y=element_text(angle=90, vjust=0.5, hjust=0.5)) +
+  scale_y_continuous(trans='log10')
+  
+
+## State/Territory/District
+WIS_ot_state <-WIS.ot.fig_dat(filter(WIS_all, location_name!="National",
+                                     location_name!="American Samoa"))
+Fig6.B <-ot.plot(WIS_ot_state, date, abWIS) +
+  labs(title = "B. Average Weighted Interval Score for State/Territory/DC Forecasts",
+       y = "Average Weighted Interval Score") + theme(axis.text.y=element_text(angle=90, vjust=0.5, hjust=0.5)) +
+  scale_y_continuous(trans='log10')
+
+## Large Counties
+load("C:/Users/oko8/OneDrive - CDC/COVID/Forecasts/Data/WIS_all horizons_large counties.Rdata")
+WIS_ot_co <-WIS.ot.fig_dat(WIS_all)
+Fig6.C <-ot.plot(WIS_ot_co, date, abWIS) +
+  labs(title = "C. Average Weighted Interval Score for Large County Forecasts*",
+       x = "Forecast target date",
+       y = "Average Weighted Interval Score") + theme(axis.text.y=element_text(angle=90, vjust=0.5, hjust=0.5)) +
+  scale_y_continuous(trans='log10')
+
+############################################################################
+############################################################################
+
+### Coverage Over time
+
+load("C:/Users/oko8/OneDrive - CDC/COVID/Forecasts/Data/cases_nat_state_forecasts_for analysis_2022-08-18.Rdata")
+load("C:/Users/oko8/OneDrive - CDC/COVID/Forecasts/Data/cases_large counties_forecasts_for analysis_2022-08-18.Rdata")
+
+## National
+cov_ot_nat <-cov.ot.fig_dat(filter(dat_US_state, location=="US", sub_date <= cut_date)) 
+Fig6.D <-ot.plot(cov_ot_nat, target_end_date, cov.95)  +
+  geom_hline(yintercept = 0.95,  linetype=6, size=1.05) +
+  theme(axis.title.x=element_blank()) +  
+  labs(title="D. 95% Coverage for National Forecasts",
+       y = "95% Coverage") + theme(axis.text.y=element_text(angle=90, vjust=0.5, hjust=0.5))
+
+## State/Territory/District
+cov_ot_state <-cov.ot.fig_dat(filter(dat_US_state, location!="US", sub_date <= cut_date))
+Fig6.E <-ot.plot(cov_ot_state, target_end_date, cov.95) +
+  geom_hline(yintercept = 0.95,  linetype=6, size=1.05) +
+  labs(title = "E. 95% Coverage for State/Territory/DC Forecasts",
+       y = "95% Coverage") + theme(axis.text.y=element_text(angle=90, vjust=0.5, hjust=0.5))
+
+## Large Counties
+cov_ot_co <-cov.ot.fig_dat(filter(dat_large_count, sub_date <= cut_date))
+Fig6.F <-ot.plot(cov_ot_co, target_end_date, cov.95) +
+  geom_hline(yintercept = 0.95,  linetype=6, size=1.05) +
+  labs(title = "F. 95% Coverage for Large County Forecasts*",
+       x = "Forecast target date",
+       y = "95% Coverage") +  theme(axis.text.y=element_text(angle=90, vjust=0.5, hjust=0.5))
+
+############################################################################
+############################################################################
+
+
+wrapper <- function(x, ...) paste(strwrap(x, ...), collapse = "\n")
+# The a label
+teams_nat_st <-"Panels A, D, B and E include: LNQ-ens1, Microsoft_DeepSTIA, COVIDhub-4_week_ensemble, USC-SI_kJalpha, CU-select, LANL-GrowthRate, JHU_CSSE-DECOM, COVIDhub-trained_ensemble, COVIDhub-baseline, Karlen-pypm, BPagano-RtDriven, JHUAPL-Bucky, UVA-Ensemble, IEM_MED-CovidProject, CEID-Walk, Covid19Sim-Simulator, IowasStateLW-STEM, UCLA-SuEIR, JHU_IDD-CovidSP, RobertWalraven-ESG, MOBS-GLEAM_COVID, and CovidAnalytics-DELPHI. "
+
+teams_co <-"Panels C and F include: LNQ-ens1, COVIDhub-4_week_ensemble, CU-select, LANL-GrowthRate, COVIDhub-trained_ensemble, COVIDhub-baseline, JHUAPL-Bucky, UVA-Ensemble, CEID-Walk, JHU_UNC_GAS-StatMechPoole, IowasStateLW-STEM, JHU_IDD-CovidSP, UMass-MechBayes, FAIR-NRAR, FRBSF_Wilson-Econometric."
+
+
+############################################################################
+############################################################################
+
+Fig6 <-annotate_figure(
+  grid.arrange(Fig6.A, Fig6.D,
+               Fig6.B, Fig6.E,
+               Fig6.C, Fig6.F,
+             #Fig6.D, Fig6.H,
+             ncol=2),
+          bottom = text_grob("*U.S. counties with a population of at least 93,230 people \n", hjust=1, x=1, face = "italic", size = 10))
+
+```
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+
+Fig6.note1 <-annotate_figure(Fig6,
+                bottom = text_grob(label = wrapper(teams_nat_st, width = 195), hjust=0, x=0.001, size = 10))
+
+```
+
+```{r Fig6, echo=FALSE, warning=FALSE, message=FALSE, fig.height=11, fig.width=13}
+
+annotate_figure(Fig6.note1,
+                bottom = text_grob(paste0("\n", label = wrapper(teams_co, width = 195)), hjust=0, x=0.001,
+                                   size = 10))
+
+```
+
+
+### Figure 7 . Marginal mean WIS
+
+```{r echo=FALSE, warning=F, message=F}
+
+load("C:/Users/oko8/OneDrive - CDC/COVID/Forecasts/Data/WIS_gee.Rdata") # data
+load("C:/Users/oko8/OneDrive - CDC/COVID/Forecasts/Data/gee_for_manuscript.rda")
+
+team <-c(unique(as.character(WIS_gee$model))) 
+dat_team <-list()
+means_sds <-list()
+means_sds_phase <-list()
+
+marg_means_int <-list()
+marg_means <-list()
+
+# Model Predictions 
+for(i in 1:length(team)){
+  
+  dat_team[[i]] <-as.data.frame(WIS_gee %>%
+                                  filter(model==team[i]) %>%
+                                  mutate(model=droplevels(model)) %>%
+                                  ungroup())
+  
+  
+  means_sds[[i]] <-dat_team[[i]] %>%
+    mutate(mean_log_WIS=mean(log(interval_score)),
+           sd_log_WIS=sd(log(interval_score)),
+           mean_log_cases=mean(log(true_value)),
+           sd_log_cases=sd(log(true_value))
+    ) %>%
+    dplyr::select(model, contains("mean_"), contains("sd_")) %>%
+    distinct()
+
+  # Log(cases)
+  marg_means_int[[i]] <-as.data.frame(emmeans(model[[i]], ~1))
+  marg_means_int[[i]] <-marg_means_int[[i]] %>%
+    rename(predicted=emmean) %>%
+    mutate(model=team[i],
+           predicted_back=(predicted*means_sds[[i]]$sd_log_WIS) + means_sds[[i]]$mean_log_WIS,
+           predicted_back_lo=(asymp.LCL*means_sds[[i]]$sd_log_WIS) + means_sds[[i]]$mean_log_WIS,
+           predicted_back_up=(asymp.UCL*means_sds[[i]]$sd_log_WIS) + means_sds[[i]]$mean_log_WIS) %>%
+    mutate(predicted_back_rescale=exp(predicted_back),
+           predicted_back_lo_rescale=exp(predicted_back_lo),
+           predicted_back_up_rescale=exp(predicted_back_up))
+  
+  marg_means[[i]] <-ggemmeans(model[[i]], terms=c("phase")) %>% #, "cases_log_std[-2:2]")) %>%
+    rename(phase=x,
+           cases=group) %>%
+  
+    mutate(model=team[i],
+           predicted_back=(predicted*means_sds[[i]]$sd_log_WIS) + means_sds[[i]]$mean_log_WIS,
+           predicted_back_lo=(conf.low*means_sds[[i]]$sd_log_WIS) + means_sds[[i]]$mean_log_WIS,
+           predicted_back_up=(conf.high*means_sds[[i]]$sd_log_WIS) + means_sds[[i]]$mean_log_WIS) %>%
+
+    mutate(predicted_back_rescale=exp(predicted_back),
+           predicted_back_lo_rescale=exp(predicted_back_lo),
+           predicted_back_up_rescale=exp(predicted_back_up)) 
+}
+marg_means_int <-do.call(rbind.data.frame, marg_means_int)
+marg_means <-do.call(rbind.data.frame, marg_means)
+
+marg_means_int <-marg_means_int %>% 
+  dplyr::select(-`1`) %>%
+  mutate(model=as.factor(model),
+         model=fct_reorder(model, predicted_back),
+         phase="Mean across phases") 
+levels <-levels(marg_means_int$model)
+
+marg_means <-marg_means %>%
+  
+  ## Order by increasing error, on average
+  mutate(model=as.factor(model),
+         model=factor(model, levels = levels)) %>%
+  mutate(phase=as.factor(ifelse(phase=="increasing", "Increasing",
+                                    ifelse(phase=="decreasing", "Decreasing",
+                                           ifelse(phase=="peak", "Peak",
+                                                  ifelse(phase=="nadir", "Nadir", "Mean across phases"))))),
+         phase=factor(phase, 
+                          levels = c("Mean across phases", "Increasing", "Peak", "Decreasing",  "Nadir"))
+  ) %>%
+  ungroup()
+  
+
+baseline <-filter(marg_means_int, model=="COVIDhub-baseline")
+
+# Figure
+Fig7A <-marg_means_int %>%
+  ggplot(.) +
+  geom_point(aes(model, predicted_back_rescale)) +
+  geom_linerange(aes(model, ymin=predicted_back_lo_rescale, ymax=predicted_back_up_rescale)) +
+  geom_hline(data=baseline, mapping=aes(yintercept=baseline$predicted_back_lo_rescale), color="red", linetype="dashed") + 
+  geom_hline(data=baseline, mapping=aes(yintercept=baseline$predicted_back_up_rescale), color="red", linetype="dashed") +
+  labs( y="Marginal mean\n Weighted Interval Score", 
+        title="A.") +
+  theme_bw() +
+  theme(axis.title.y=axis.title.y_standard, axis.text=axis.text_standard,
+        legend.position = "bottom", legend.title = element_blank(), legend.text=legend.text_standard,
+        strip.text=strip.text_standard, strip.background=strip.background_standard,
+        axis.title.x = element_blank(),
+        axis.text.x = element_text(angle = 45, hjust=1))
+
+```
+
+```{r echo=FALSE, warning=F, message=F}
+
+Fig7B <-marg_means %>%
+  mutate(scaled_pred=predicted_back/baseline$predicted_back,
+         SE_scaled=(predicted_back_up-predicted_back_lo)/3.92,
+         prob_base=round(pnorm(baseline$predicted_back,
+                               predicted_back, SE_scaled), 5),
+         prob_label=ifelse(prob_base >=0.9, "*", NA),
+         phase=fct_rev(phase)) %>%
+  ggplot(.) +
+  geom_tile(aes(model, phase, fill=scaled_pred)) +
+  geom_text(aes(model, phase, label=prob_label), size=4) +
+  scale_fill_gradient2(low = "#7fcdbb", high = "#fecc5c", midpoint = 1.0,
+                       name="Marginal mean Weighted Interval Score  \nscaled to the marginal mean  \nof COVIDhub-baseline model  \nacross all phases",
+                       guide = guide_colourbar(barheight = 1.5)) +
+  labs(y="", title="B.",
+       caption="*Probability >= 0.90 that forecasts outperform baseline") + 
+  theme_bw() +
+  theme(legend.position = "bottom", legend.title.align=0.5, legend.box.just = "center", 
+    plot.caption = plot.caption_standard,
+    strip.text=strip.text_standard, strip.background=strip.background_standard,
+    panel.border = element_rect(colour = "black", fill = NA),
+    axis.title.x = element_blank(), axis.text.x = element_text(angle = 45, hjust=1), axis.text=axis.text_standard,
+    axis.ticks.y=element_blank())
+
+```
+
+
+```{r Fig7, echo=FALSE, warning=F, message=F, fig.height=8.5, fig.width=8.5}
+
+Fig7A_updated <-Fig7A + theme(axis.text.x = element_blank())
+
+plot_grid(Fig7A_updated, Fig7B, rel_heights  = c(0.5, 1), axis = "l",
+          align="v", nrow = 2)
+
+```

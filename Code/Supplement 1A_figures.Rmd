@@ -1,0 +1,254 @@
+---
+title: "Supplement 1A"
+author: "VKL"
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+output:
+  html_document:
+    keep_md: yes
+---
+
+```{r setup, include=FALSE} 
+knitr::opts_chunk$set(warning=FALSE,message=FALSE) 
+
+library(tidyverse)
+library(tidytext)
+library(ggrepel)
+
+library(gridExtra)
+
+library(scoringutils)
+library(viridis)
+
+library(ggeffects)
+library(emmeans)
+library(splines)
+
+setwd("C:/Users/oko8/OneDrive - CDC/COVID/Forecasts")
+
+### Need functions
+source("C:/Users/oko8/OneDrive - CDC/COVID/Forecasts/Code/Inc_Case_Eval_Manuscript/coverage.R") #coverage
+### Estimate Relative WIS 
+pairWIS_fun <-function(x, df) {
+  
+  df <-df %>%
+    pairwise_comparison(., summarise_by = c("model"),
+                        baseline = "COVIDhub-baseline") %>%
+    dplyr::select(model, scaled_rel_skill) %>%
+    distinct()
+}
+pairWIS_co_fun <-function(x, df) {
+  
+  df <-df %>%
+    pairwise_comparison(., summarise_by = c("model", "pop_size_quant2"),
+                        baseline = "COVIDhub-baseline") %>%
+    dplyr::select(model, pop_size_quant2, scaled_rel_skill) %>%
+    distinct()
+}
+
+## Standardized formatting
+strip.background_standard <-element_blank()
+strip.text_standard <-element_text(size=10, face='bold')
+legend.text_standard <-element_text(size=12)
+plot.caption_standard <-element_text(size=11, face = "italic")
+axis.title.y_standard <-element_text(margin = margin(1, 10, 1, 1), size=12)
+axis.text_standard <-element_text(size=11)
+
+## Function for setting up legends in empty facet spaces
+library(gtable)
+library(cowplot)
+
+shift_legend <- function(p){
+
+  # check if p is a valid object
+  if(!"gtable" %in% class(p)){
+    if("ggplot" %in% class(p)){
+      gp <- ggplotGrob(p) # convert to grob
+    } else {
+      message("This is neither a ggplot object nor a grob generated from ggplotGrob. Returning original plot.")
+      return(p)
+    }
+  } else {
+    gp <- p
+  }
+
+  # check for unfilled facet panels
+  facet.panels <- grep("^panel", gp[["layout"]][["name"]])
+  empty.facet.panels <- sapply(facet.panels, function(i) "zeroGrob" %in% class(gp[["grobs"]][[i]]))
+  empty.facet.panels <- facet.panels[empty.facet.panels]
+  if(length(empty.facet.panels) == 0){
+    message("There are no unfilled facet panels to shift legend into. Returning original plot.")
+    return(p)
+  }
+
+  # establish extent of unfilled facet panels (including any axis cells in between)
+  empty.facet.panels <- gp[["layout"]][empty.facet.panels, ]
+  empty.facet.panels <- list(min(empty.facet.panels[["t"]]), min(empty.facet.panels[["l"]]),
+                             max(empty.facet.panels[["b"]]), max(empty.facet.panels[["r"]]))
+  names(empty.facet.panels) <- c("t", "l", "b", "r")
+
+  # extract legend & copy over to location of unfilled facet panels
+  guide.grob <- which(gp[["layout"]][["name"]] == "guide-box")
+  if(length(guide.grob) == 0){
+    message("There is no legend present. Returning original plot.")
+    return(p)
+  }
+  gp <- gtable_add_grob(x = gp,
+                        grobs = gp[["grobs"]][[guide.grob]],
+                        t = empty.facet.panels[["t"]],
+                        l = empty.facet.panels[["l"]],
+                        b = empty.facet.panels[["b"]],
+                        r = empty.facet.panels[["r"]],
+                        name = "new-guide-box")
+
+  # squash the original guide box's row / column (whichever applicable)
+  # & empty its cell
+  guide.grob <- gp[["layout"]][guide.grob, ]
+  if(guide.grob[["l"]] == guide.grob[["r"]]){
+    gp <- gtable_squash_cols(gp, cols = guide.grob[["l"]])
+  }
+  if(guide.grob[["t"]] == guide.grob[["b"]]){
+    gp <- gtable_squash_rows(gp, rows = guide.grob[["t"]])
+  }
+  gp <- gtable_remove_grobs(gp, "guide-box")
+
+  return(gp)
+}
+
+
+## Change labels for counties
+ rename_counts <-function(df) {   
+   df <-df %>%
+     mutate(pop_size_quant2=ifelse(pop_size_quant2==1, "County Forecasts: Size Quantile 1",
+                                 ifelse(pop_size_quant2==2, "County Forecasts: Size Quantile 2",
+                                        ifelse(pop_size_quant2==3, "County Forecasts: Size Quantile 3", 
+                                               ifelse(pop_size_quant2==4, "County Forecasts: Size Quantile 4", "County forecasts: Size Quantile 5")))))
+}
+
+```
+
+## Supplemental Figures
+
+### Supplement 1
+
+```{r Fig S1A, echo=FALSE, warning=FALSE, message=FALSE, fig.height=8, fig.width=11}
+start_date <-as.Date('2020-07-28')
+stop_date <-as.Date('2021-12-21')
+
+sec_models <-c("CU-nochange",  "CU-scenario_high", "CU-scenario_low", "CU-scenario_mid", "COVIDhub_CDC-ensemble") ## Non-primary models should be exlcuded
+
+## Must have 4 weeks of forecasts for all locations
+include_wks <-function(x, df){
+  
+  df <-df %>%
+    group_by(model, sub_date, location) %>%
+    mutate(no_horizons=length(unique(target))) %>% 
+    ungroup() %>%
+    filter(no_horizons>=4) #There should be at least 4 horizons
+}
+
+## Must have quantities for all forecasts
+include_quant <-function(x, df){
+  
+  df <-df %>%
+    group_by(model, location, forecast_date, target) %>%
+    mutate(quants=length(quantile[!is.na(quantile)])) %>%
+    ungroup() %>%
+    filter(quants==7) #There should be 7 quantiles 
+  
+}
+
+## Must have forecasts for at least 50 locations for states/territories/district and national
+include_locs <-function(x, df){
+  
+  df <-df %>%
+    mutate(location=as.factor(location)) %>%
+    group_by(model, forecast_date) %>%
+    mutate(locs=length(unique(location))) %>% #[quantile==0.5 & target=="1 wk ahead inc case"]))) %>%
+    ungroup() %>%
+    filter(locs>=50) 
+  
+}
+
+## Must have 75% of all counties per quantile per submission date forecasted
+include_locs_co <-function(x, df){
+  
+  df <-df %>%
+    group_by(pop_size_quant2) %>%
+    mutate(locs_total=length(unique(location))) %>% 
+    ungroup() %>%
+    group_by(model, pop_size_quant2, sub_date) %>%
+    mutate(locs=length(unique(location))) %>% #[quantile==0.5 & target=="1 wk ahead inc case"]))) %>%
+    ungroup() %>%
+    mutate(percent_co=locs/locs_total) %>%
+    filter(percent_co>=0.75)
+}
+
+## Must have submitted at least 50% of weeks
+include_subs <-function(x, df){
+  
+  df <-df %>%
+    filter(sub_date >= start_date) %>%
+    mutate(total=length(unique(sub_date))) %>% 
+    group_by(model) %>%
+    mutate(subs=length(unique(sub_date))) %>%
+    ungroup() %>%
+    mutate(percent_sub=subs/total) %>%
+    filter(percent_sub>=0.50)
+  
+}
+
+############################################################################
+############################################################################
+
+load("C:/Users/oko8/OneDrive - CDC/COVID/Forecasts/Data/updated_cases_nat_state_forecasts_2022-04-04.Rdata")
+
+### National + state submissions
+nat_st <-all_dat %>%
+  filter(!(model %in% sec_models),
+         sub_date >= start_date & sub_date <= stop_date) %>%
+  filter(type=="point")
+
+### National + state submissions that met inclusion criteria
+teams_nat_st <-all_dat %>%
+  filter(!(model %in% sec_models),
+         sub_date >= start_date & sub_date <= stop_date) %>%
+  include_quant(df=.) %>% #all quantiles present
+  include_wks(df=.) %>% #all targets included 
+  include_locs(df=.) %>% #at least 50 locations
+  include_subs(df=.) %>% #submitted at least 50% of the time
+  dplyr::select(model) %>%
+  mutate(model_rename=paste0("*", model)) %>%
+  distinct()
+
+### Submission plots
+
+nat_st %>%
+  dplyr::select(-target, -target_end_date, -value) %>%
+  distinct() %>%
+  group_by(sub_date, model) %>%
+  summarize(locs=n()) %>%
+  ungroup() %>%
+  mutate(log_loc=log(locs)) %>%
+  ungroup() %>%
+  mutate(total_sub=length(unique(sub_date))) %>%
+  group_by(model) %>%
+  mutate(wks_sub=length(sub_date),
+         per_sub=wks_sub/total_sub) %>%
+  ungroup() %>%
+  left_join(., teams_nat_st, by="model") %>%
+  mutate(model_rename=ifelse(is.na(model_rename), model, model_rename),
+         model_rename=fct_reorder(model_rename, wks_sub)) %>%
+  ggplot(., aes(sub_date, model_rename)) +
+  geom_tile(aes(fill=log_loc)) +
+  scale_fill_gradient(low = "#c7e9c0", high = "#41ab5d") + 
+  geom_text(aes(label=locs), size=1.50) +
+  scale_x_date(date_breaks = "1 month", date_minor_breaks = "1 week", date_labels = "%B") +
+  theme_bw() +
+  labs(title = "A. Primary Model* Submissions for National/State/Territory-Level Case Forecasts Over Time",
+       subtitle= "The number of locations forecasted per submission is labled",
+       caption = "*Model met inclusion criteria") +
+  theme(axis.title.x = element_blank(), axis.text.x = element_text(angle = 45, hjust=1),
+        axis.title.y = element_blank(),
+        legend.position = "none")
+
+```

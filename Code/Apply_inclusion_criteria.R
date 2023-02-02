@@ -9,7 +9,7 @@ start_date <-as.Date('2020-07-28')
 stop_date <-as.Date('2021-12-21')
 
 ## Non-primary models should be exlcuded
-sec_models <-c("CU-nochange",  "CU-scenario_high", "CU-scenario_low", "CU-scenario_mid", "COVIDhub_CDC-ensemble")
+sec_models <-c("CU-nochange",  "CU-scenario_high", "CU-scenario_low", "CU-scenario_mid", "COVIDhub_CDC-ensemble") #Note ensemble replaced with 4_week ensemble
 
 ## Must have 4 weeks of forecasts for all locations
 include_wks <-function(x, df){
@@ -38,7 +38,7 @@ include_locs <-function(x, df){
   df <-df %>%
     mutate(location=as.factor(location)) %>%
     group_by(model, forecast_date) %>%
-    mutate(locs=length(unique(location))) %>% #[quantile==0.5 & target=="1 wk ahead inc case"]))) %>%
+    mutate(locs=length(unique(location))) %>% 
     ungroup() %>%
     filter(locs>=50) 
   
@@ -52,7 +52,7 @@ include_locs_co <-function(x, df){
     mutate(locs_total=length(unique(location))) %>% 
     ungroup() %>%
     group_by(model, pop_size_quant2, sub_date) %>%
-    mutate(locs=length(unique(location))) %>% #[quantile==0.5 & target=="1 wk ahead inc case"]))) %>%
+    mutate(locs=length(unique(location))) %>% 
     ungroup() %>%
     mutate(percent_co=locs/locs_total) %>%
     filter(percent_co>=0.75)
