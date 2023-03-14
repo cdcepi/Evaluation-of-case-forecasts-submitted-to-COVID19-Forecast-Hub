@@ -66,7 +66,7 @@ Fig1.A <-ggplot() +
                       values = c("National"="black",
                                  "State/Territory/DC"="grey75")) +
   labs(title = "A. Reported Cases Per 100K Population",
-       y = "Incident COVID-19 Cases") +
+       y = "Incident COVID-19 Cases per 100K population") +
   theme_bw() +
   theme(axis.title.x=element_blank(),
         legend.position = c(0.02, 0.82),legend.title = element_blank(),
@@ -164,9 +164,9 @@ mean_WIS <-function() {
     arrange(`State/Territory/DC Forecasts`) %>% 
     gather(key, value, -model, -model_reorder) %>%
     mutate(key=factor(key, levels = c("National Forecasts", 
-                                      "State/Territory/DC Forecasts"))) %>% 
-      mutate(value_display=format(round(value, digits=2), nsmall = 2),
-             value_display=ifelse(value_display=="  NA", NA, value_display))
+                                      "State/Territory/DC Forecasts"))) %>%
+    mutate(value_display=format(round(value, digits=2), nsmall = 2),
+           value_display=ifelse(value_display=="  NA", NA, value_display))
     
   
   }
@@ -183,7 +183,8 @@ WIS.heatmap <-mean_WIS %>%
   scale_fill_gradient2(low = "steelblue", high = "red", midpoint = 1.0, na.value = "grey75") + 
   scale_x_discrete(labels = function(x) str_wrap(x, width=15)) +
   theme_bw() +
-  labs(fill="Relative Weighted Interval Score") +
+  labs(fill="Relative Weighted Interval Score",
+       title="B. Relative Weighted Interval Score") +
   theme(axis.title.x = element_blank(), 
         axis.title.y = element_blank(), axis.text.y=element_blank(),
         axis.text=axis.text_standard,
@@ -233,7 +234,8 @@ cov.heatmap <-cov.95 %>%
   scale_fill_gradient2(low = "white", mid = "#f7fcb9", high = "#31a354", midpoint = 0.75, na.value = "grey75") +
   scale_x_discrete(labels = function(x) str_wrap(x, width=15)) +
   theme_bw() +
-  labs(fill="95% Coverage") +
+  labs(fill="95% Coverage",
+       title="C. 95% Coverage") +
   theme(axis.title.x = element_blank(), #axis.text.x = element_text(angle = 45, hjust=1),
         axis.title.y = element_blank(), axis.text.y=element_blank(),
         axis.text=axis.text_standard,
@@ -304,7 +306,8 @@ all_subs <-subs_nat %>%
   scale_fill_gradient(low = "#fde0dd", high = "#c51b8a", na.value = "grey75") +
   scale_x_discrete(labels = function(x) str_wrap(x, width=15)) +
   theme_bw() +
-  labs(fill="% Weeks \nSubmitted") +
+  labs(fill="% Weeks \nSubmitted",
+       title="A. Percent of Weeks Submitted") +
   theme(axis.title.x = element_blank(), 
         axis.title.y = element_blank(), 
         axis.text=axis.text_standard,
@@ -882,7 +885,7 @@ Fig7B <-marg_means %>%
                        name="Marginal mean Weighted Interval Score  \nscaled to the marginal mean  \nof COVIDhub-baseline model  \nacross all phases",
                        guide = guide_colourbar(barheight = 1.5)) +
   labs(y="", title="B.",
-       caption="*Probability >= 0.90 that forecasts outperform baseline") + 
+       caption="*80% CI is lower than baseline") + 
   theme_bw() +
   theme(legend.position = "bottom", legend.title.align=0.5, legend.box.just = "center", 
     plot.caption = plot.caption_standard,

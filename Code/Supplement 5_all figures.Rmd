@@ -376,7 +376,7 @@ annotate_figure(
 
 ### Relative WIS
 
-```{r Fig S5.3, echo=FALSE, warning=FALSE, message=FALSE, fig.height=10, fig.width=12.5}
+```{r Fig S5.3, echo=FALSE, warning=FALSE, message=FALSE, fig.height=10, fig.width=15}
 
 # Forecasts
 load("C:/Users/oko8/OneDrive - CDC/COVID/Forecasts/Data/WIS_all horizons_nat_state.Rdata")

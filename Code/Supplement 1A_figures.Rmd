@@ -25,26 +25,6 @@ library(splines)
 
 setwd("C:/Users/oko8/OneDrive - CDC/COVID/Forecasts")
 
-### Need functions
-source("C:/Users/oko8/OneDrive - CDC/COVID/Forecasts/Code/Inc_Case_Eval_Manuscript/coverage.R") #coverage
-### Estimate Relative WIS 
-pairWIS_fun <-function(x, df) {
-  
-  df <-df %>%
-    pairwise_comparison(., summarise_by = c("model"),
-                        baseline = "COVIDhub-baseline") %>%
-    dplyr::select(model, scaled_rel_skill) %>%
-    distinct()
-}
-pairWIS_co_fun <-function(x, df) {
-  
-  df <-df %>%
-    pairwise_comparison(., summarise_by = c("model", "pop_size_quant2"),
-                        baseline = "COVIDhub-baseline") %>%
-    dplyr::select(model, pop_size_quant2, scaled_rel_skill) %>%
-    distinct()
-}
-
 ## Standardized formatting
 strip.background_standard <-element_blank()
 strip.text_standard <-element_text(size=10, face='bold')
@@ -52,68 +32,6 @@ legend.text_standard <-element_text(size=12)
 plot.caption_standard <-element_text(size=11, face = "italic")
 axis.title.y_standard <-element_text(margin = margin(1, 10, 1, 1), size=12)
 axis.text_standard <-element_text(size=11)
-
-## Function for setting up legends in empty facet spaces
-library(gtable)
-library(cowplot)
-
-shift_legend <- function(p){
-
-  # check if p is a valid object
-  if(!"gtable" %in% class(p)){
-    if("ggplot" %in% class(p)){
-      gp <- ggplotGrob(p) # convert to grob
-    } else {
-      message("This is neither a ggplot object nor a grob generated from ggplotGrob. Returning original plot.")
-      return(p)
-    }
-  } else {
-    gp <- p
-  }
-
-  # check for unfilled facet panels
-  facet.panels <- grep("^panel", gp[["layout"]][["name"]])
-  empty.facet.panels <- sapply(facet.panels, function(i) "zeroGrob" %in% class(gp[["grobs"]][[i]]))
-  empty.facet.panels <- facet.panels[empty.facet.panels]
-  if(length(empty.facet.panels) == 0){
-    message("There are no unfilled facet panels to shift legend into. Returning original plot.")
-    return(p)
-  }
-
-  # establish extent of unfilled facet panels (including any axis cells in between)
-  empty.facet.panels <- gp[["layout"]][empty.facet.panels, ]
-  empty.facet.panels <- list(min(empty.facet.panels[["t"]]), min(empty.facet.panels[["l"]]),
-                             max(empty.facet.panels[["b"]]), max(empty.facet.panels[["r"]]))
-  names(empty.facet.panels) <- c("t", "l", "b", "r")
-
-  # extract legend & copy over to location of unfilled facet panels
-  guide.grob <- which(gp[["layout"]][["name"]] == "guide-box")
-  if(length(guide.grob) == 0){
-    message("There is no legend present. Returning original plot.")
-    return(p)
-  }
-  gp <- gtable_add_grob(x = gp,
-                        grobs = gp[["grobs"]][[guide.grob]],
-                        t = empty.facet.panels[["t"]],
-                        l = empty.facet.panels[["l"]],
-                        b = empty.facet.panels[["b"]],
-                        r = empty.facet.panels[["r"]],
-                        name = "new-guide-box")
-
-  # squash the original guide box's row / column (whichever applicable)
-  # & empty its cell
-  guide.grob <- gp[["layout"]][guide.grob, ]
-  if(guide.grob[["l"]] == guide.grob[["r"]]){
-    gp <- gtable_squash_cols(gp, cols = guide.grob[["l"]])
-  }
-  if(guide.grob[["t"]] == guide.grob[["b"]]){
-    gp <- gtable_squash_rows(gp, rows = guide.grob[["t"]])
-  }
-  gp <- gtable_remove_grobs(gp, "guide-box")
-
-  return(gp)
-}
-
 
 ## Change labels for counties
  rename_counts <-function(df) {   
@@ -240,15 +158,20 @@ nat_st %>%
          model_rename=fct_reorder(model_rename, wks_sub)) %>%
   ggplot(., aes(sub_date, model_rename)) +
   geom_tile(aes(fill=log_loc)) +
-  scale_fill_gradient(low = "#c7e9c0", high = "#41ab5d") + 
-  geom_text(aes(label=locs), size=1.50) +
+  scale_fill_gradient(low = "#c7e9c0", high = "#41ab5d",
+                      name = "Number of \nlocations forecasted", 
+                      breaks = c(0, 3.9), 
+                      labels =c(1, 50)
+                      ) + 
+ # geom_text(aes(label=locs), size=1.50) +
   scale_x_date(date_breaks = "1 month", date_minor_breaks = "1 week", date_labels = "%B") +
   theme_bw() +
   labs(title = "A. Primary Model* Submissions for National/State/Territory-Level Case Forecasts Over Time",
-       subtitle= "The number of locations forecasted per submission is labled",
-       caption = "*Model met inclusion criteria") +
+       #subtitle= "The number of locations forecasted per submission is labled"#,
+       caption = "*Model met inclusion criteria"
+       ) +
   theme(axis.title.x = element_blank(), axis.text.x = element_text(angle = 45, hjust=1),
         axis.title.y = element_blank(),
-        legend.position = "none")
+        legend.position = "bottom", legend.title.align=0.5)
 
 ```

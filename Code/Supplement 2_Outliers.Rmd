@@ -253,7 +253,7 @@ Fig6B <-marg_means %>%
                        name="Marginal mean Weighted Interval Score  \nscaled to the marginal mean  \nof COVIDhub-baseline model  \nacross all phases",
                        guide = guide_colourbar(barheight = 1.5)) +
   labs(y="", title="B.",
-       caption="*Probability >= 0.90 that forecasts outperform baseline") + 
+       caption="*80% CI is lower than baseline") + 
   theme_bw() +
   theme(legend.position = "bottom", legend.title.align=0.5, legend.box.just = "center", 
     plot.caption = plot.caption_standard,

@@ -116,7 +116,8 @@ WIS.heatmap <-mean_WIS %>%
   scale_fill_gradient2(low = "steelblue", high = "red", midpoint = 1.0, na.value = "grey75") + 
   scale_x_discrete(labels = function(x) str_wrap(x, width=15)) +
   theme_bw() +
-  labs(fill="Relative Weighted Interval Score") +
+  labs(fill="Relative Weighted Interval Score",
+       title="B. Relative Weighted Interval Score") +
   theme(axis.title.x = element_blank(), axis.text.y=element_blank(),
         axis.title.y = element_blank(), axis.text=axis.text_standard,
         legend.position="bottom")
@@ -170,7 +171,8 @@ cov.heatmap <-cov.95 %>%
   scale_fill_gradient2(low = "white", mid = "#f7fcb9", high = "#31a354", midpoint = 0.75, na.value = "grey75") +
   scale_x_discrete(labels = function(x) str_wrap(x, width=15)) +
   theme_bw() +
-  labs(fill="95% Coverage") +
+  labs(fill="95% Coverage",
+       title="C. 95% Coverage") +
   theme(axis.title.x = element_blank(), 
         axis.title.y = element_blank(), axis.text.y=element_blank(),
         axis.text=axis.text_standard,
@@ -234,7 +236,8 @@ all_subs <-subs_co %>%
   scale_fill_gradient(low = "#fde0dd", high = "#c51b8a", na.value = "grey75") + 
   scale_x_discrete(labels = function(x) str_wrap(x, width=15)) +
   theme_bw() +
-  labs(fill="% Weeks \nSubmitted") +
+  labs(fill="% Weeks \nSubmitted",
+       title="A. Percent of Weeks Submitted") +
   theme(axis.title.x = element_blank(),   
         axis.title.y = element_blank(), 
         axis.text=axis.text_standard,
