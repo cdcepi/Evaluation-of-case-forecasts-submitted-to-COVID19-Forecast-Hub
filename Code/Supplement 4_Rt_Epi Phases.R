@@ -7,26 +7,18 @@ library(slider)
 
 ####--- Read in Rt Data ---####
 
-setwd("C:/Users/oko8/OneDrive - CDC/Projects/epiforecasts_all_versions_rt/all_versions_exported")
-
 ## Need to update all file names since non alpha-numeric characters were included in the title (note, first needed to truncate names in the CMB with "ren *.* ??????????-test.*")
-datapath <-"C:/Users/oko8/OneDrive - CDC/Projects/epiforecasts_all_versions_rt/all_versions_exported"
+datapath <-"./Data/epiforecasts_all_versions_rt/all_versions_exported/"
 fileList <-dir(path = datapath, pattern = '*.csv')  # list of file names, not including their paths
 
-sapply(X = fileList, FUN = function(x) {
-  file.rename(paste0(datapath, x),     # paste0() the path and old name
-              paste0(datapath, substr(x, 1, 10), ".csv")) })
-
-read_file_name <- function(flnm) {
-  read_csv(flnm) %>% 
-    mutate(file_date = flnm)
+rt <-list()
+for (i in 1:length(fileList)) {
+  rt[[i]] <-read_csv(paste0(datapath, fileList[i])) %>%
+    mutate(file_date = gsub(".csv", "", fileList[i])) %>%
+    filter(type=="estimate") 
 }
 
-rt <-list.files(pattern = "*.csv", 
-             full.names = T) %>% 
-  map_df(~read_file_name(.) %>%
-           filter(type=="estimate") 
-  )
+rt <-do.call(bind_rows, rt)
 
 ####--- Pull midweek estimates and calculate means per date ---####
 
@@ -58,9 +50,9 @@ rt_med <-rt %>%
 
 ####--- Create phases---####
 
-rt3 <-function() {
+rt_phases <-function() {
   
-  rt3 <-rt_med %>%
+  rt_phases <-rt_med %>%
     ungroup() %>%
     rename(location_name=state) %>%
     group_by(location_name) %>%
@@ -85,12 +77,12 @@ rt3 <-function() {
     arrange(seq, groups_phase)
   
   # Pull first classifications from each group of phases & and create windows of every three groups
-  states <-c(unique(rt3$location_name))
+  states <-c(unique(rt_phases$location_name))
   df_phases <-list()
   
   for (i in 1:length(states)){
     
-    df_states <-rt3 %>%
+    df_states <-rt_phases %>%
       filter(seq==1) %>% 
       dplyr::select( -seq) %>%
       filter(location_name==states[i])
@@ -126,7 +118,7 @@ rt3 <-function() {
     drop_na() %>%
     dplyr::select(location_name, date, phase_reclass) 
   
-  rt3 <-rt3 %>%
+  rt_phases <-rt_phases %>%
     left_join(., btw_phase, by=c("location_name", "date")) %>%
     distinct() %>%
     mutate(phase=ifelse(phase=="unclassified", phase_reclass, phase)) %>%
@@ -137,7 +129,7 @@ rt3 <-function() {
     ungroup()
   
   #Update weeks between increase/decrease and decrease/increase due to rapid changes
-  rt3 <-rt3 %>%
+  rt_phases <-rt_phases %>%
     group_by(location_name) %>%
     mutate(phase2=ifelse(phase=="increasing" & lead(phase)=="decreasing", "peak", 
                       ifelse(phase=="decreasing" & lag(phase)=="increasing", "peak", phase)),
@@ -149,7 +141,7 @@ rt3 <-function() {
     rename(phase=phase2)
   
   ## Truth data
-  obs_data <- read_csv("C:/Users/oko8/OneDrive - CDC/Projects/covid19-forecast-hub/data-truth/truth-Incident Cases.csv") %>%
+  obs_data <- read_csv("./Data/truth-Incident Cases.csv") %>%
     filter(nchar(location) < 3) %>%
     mutate(wk_end_date = as.Date(date, "%m/%d/%y"),
            wk_end_date=as.Date(cut(wk_end_date,"week", start.on.monday = FALSE)) + 3,
@@ -159,26 +151,26 @@ rt3 <-function() {
     rename(date=wk_end_date) %>%
     arrange(location_name, date) 
   
-  rt3 <-rt3 %>%
+  rt_phases <-rt_phases %>%
     left_join(., obs_data, by=c("location_name", "date")) 
   
 }
-rt3 <-rt3()
+rt_phases <-rt_phases()
 
-sort(unique(rt3$location_name))
-rt3 <-rt3 %>%
+sort(unique(rt_phases$location_name))
+rt_phases <-rt_phases %>%
   filter(location_name!="Virgin Islands", 
          location_name!="Puerto Rico", 
          location_name!="District of Columbia")
-save(rt3, file="rt3.rdata")
+save(rt_phases, file="./Data/rt_phases.rdata")
 
-sort(unique(rt3$date))
-rt3 <-filter(rt3, date <= "2022-01-12")
+sort(unique(rt_phases$date))
+rt_phases <-filter(rt_phases, date <= "2022-01-12")
 
 ####--- Check plots ---####
 
 phases_dates_updated <-function(){
-  increasing <-rt3 %>%
+  increasing <-rt_phases %>%
     dplyr::select(location_name, phase, date) %>%
     distinct() %>%
     group_by(location_name) %>%
@@ -194,7 +186,7 @@ phases_dates_updated <-function(){
     distinct() %>%
     mutate(phase="Increasing")
   
-  decreasing <-rt3 %>%
+  decreasing <-rt_phases %>%
     dplyr::select(location_name, phase, date) %>%
     distinct() %>%
     group_by(location_name) %>%
@@ -210,7 +202,7 @@ phases_dates_updated <-function(){
     distinct() %>%
     mutate(phase="Decreasing")
   
-  nadir <-rt3 %>%
+  nadir <-rt_phases %>%
     dplyr::select(location_name, phase, date) %>%
     distinct() %>%
     group_by(location_name) %>%
@@ -226,7 +218,7 @@ phases_dates_updated <-function(){
     distinct() %>%
     mutate(phase="Nadir")
   
-  peak <-rt3 %>%
+  peak <-rt_phases %>%
     dplyr::select(location_name, phase, date) %>%
     distinct() %>%
     group_by(location_name) %>%
@@ -247,14 +239,14 @@ phases_dates_updated <-function(){
 phases_dates_updated <-phases_dates_updated()
 phases_dates_updated$phase <- factor(phases_dates_updated$phase, levels = c("Increasing", "Decreasing", "Peak", "Nadir"))
 
-states <-c(unique(rt3$location_name))
+states <-c(unique(rt_phases$location_name))
 
 plot_rt_updated <-list()
 plot_cases <-list()
 
 for(i in 1:length(states)) {
   
-  df <-rt3 %>%
+  df <-rt_phases %>%
     filter(location_name==states[i]) 
   
   phases_updated <-phases_dates_updated %>%
@@ -310,7 +302,7 @@ for (i in 1:length(states)) {
 dev.off()
 
 library(cowplot)
-pdf(paste0("C:/Users/oko8/OneDrive - CDC/COVID/Forecasts/Code/Inc_Case_Eval_Manuscript/Rt and Epidemic Phases_", Sys.Date(),".pdf"), width=11, height=8.5, paper='USr')
+pdf("./Figures/Supplement Figures/Supplement 4.pdf", width=11, height=8.5, paper='USr')
 for(i in 1:length(rt_cases)){
   print(plot_grid(rt_cases[[i]]))
 }

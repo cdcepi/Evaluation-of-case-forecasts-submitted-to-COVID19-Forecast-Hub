@@ -10,6 +10,7 @@ output:
 ```{r setup, include=FALSE} 
 knitr::opts_chunk$set(warning=FALSE,message=FALSE) 
 
+library(here)
 library(tidyverse)
 library(tidytext)
 library(ggrepel)
@@ -18,8 +19,6 @@ library(gridExtra)
 library(grid)
 
 library(scoringutils)
-
-setwd("C:/Users/oko8/OneDrive - CDC/COVID/Forecasts")
 
 ## Standardized formatting
 strip.background_standard <-element_blank()
@@ -168,8 +167,8 @@ include_subs <-function(x, df){
 ```{r Fig S1B, echo=FALSE, warning=FALSE, message=FALSE, fig.height=10, fig.width=11}
 
 ####
-load("C:/Users/oko8/OneDrive - CDC/COVID/Forecasts/Data/cases_county_forecasts_2022-04-04.Rdata")
-size <-read.csv("C:/Users/oko8/Downloads/SVI2018_US_COUNTY.csv") %>%
+load(here("Data/cases_county_forecasts_2022-04-04.Rdata"))
+size <-read.csv(here("Data/SVI2018_US_COUNTY.csv")) %>%
   dplyr::select(FIPS, E_TOTPOP) %>%
   rename(location=FIPS) %>%
   mutate(location=as.character(location),

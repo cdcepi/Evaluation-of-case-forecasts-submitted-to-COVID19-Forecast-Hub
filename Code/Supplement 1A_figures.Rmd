@@ -10,6 +10,7 @@ output:
 ```{r setup, include=FALSE} 
 knitr::opts_chunk$set(warning=FALSE,message=FALSE) 
 
+library(here)
 library(tidyverse)
 library(tidytext)
 library(ggrepel)
@@ -22,8 +23,6 @@ library(viridis)
 library(ggeffects)
 library(emmeans)
 library(splines)
-
-setwd("C:/Users/oko8/OneDrive - CDC/COVID/Forecasts")
 
 ## Standardized formatting
 strip.background_standard <-element_blank()
@@ -118,7 +117,7 @@ include_subs <-function(x, df){
 ############################################################################
 ############################################################################
 
-load("C:/Users/oko8/OneDrive - CDC/COVID/Forecasts/Data/updated_cases_nat_state_forecasts_2022-04-04.Rdata")
+load(here("Data/updated_cases_nat_state_forecasts_2022-04-04.Rdata"))
 
 ### National + state submissions
 nat_st <-all_dat %>%

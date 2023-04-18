@@ -10,6 +10,7 @@ output:
 ```{r setup, include=FALSE} 
 knitr::opts_chunk$set(warning=FALSE,message=FALSE) 
 
+library(here)
 library(tidyverse)
 library(tidytext)
 library(ggrepel)
@@ -24,10 +25,8 @@ library(ggeffects)
 library(emmeans)
 library(splines)
 
-setwd("C:/Users/oko8/OneDrive - CDC/COVID/Forecasts")
-
 ### Need functions
-source("C:/Users/oko8/OneDrive - CDC/COVID/Forecasts/Code/Inc_Case_Eval_Manuscript/coverage.R") #coverage
+source(here("Code/coverage.R")) #coverage
 
 ## Standardized formatting
 strip.background_standard <-element_blank()
@@ -144,7 +143,7 @@ cov.plot <-function(df, df2) {
 
 # Figures
 
-load("C:/Users/oko8/OneDrive - CDC/COVID/Forecasts/Data/cases_nat_state_forecasts_for analysis_2022-08-18.Rdata")
+load(here("Data/cases_nat_state_forecasts_for analysis_2022-08-18.rdata"))
 
 coverage_US <-cov.fig_dat(filter(dat_US_state, location=="US", sub_date <= cut_date,
                                    !grepl("2", target),
@@ -169,7 +168,7 @@ Cov.State <-cov.plot(coverage_states, labels_states) +
   labs(title="B. Coverage for National State/Territory/DC Forecasts")
 
 # Largest Counties
-load("C:/Users/oko8/OneDrive - CDC/COVID/Forecasts/Data/cases_large counties_forecasts_for analysis_2022-08-18.Rdata")
+load(here("Data/cases_large counties_forecasts_for analysis_2022-08-18.rdata"))
 coverage_count <-cov.fig_dat(filter(dat_large_count, sub_date <= cut_date,
                                    !grepl("2", target),
                                    !grepl("3", target)))
@@ -269,7 +268,7 @@ ot.plot <-function(df, x, y) {
 ############################################################################
 
 ### WIS Over time
-load("C:/Users/oko8/OneDrive - CDC/COVID/Forecasts/Data/WIS_all horizons_nat_state.Rdata")
+load(here("Data/WIS_all horizons_nat_state.rdata"))
 
 ## National
 WIS_ot_nat <-WIS.ot.fig_dat(filter(WIS_all, location_name=="National",
@@ -303,7 +302,7 @@ Fig2.C <-ot.plot(WIS_ot_state, date, abWIS) +
        y = "Average Weighted Interval Score") + theme(axis.text.y=element_text(angle=90, vjust=0.5, hjust=0.5))
 
 ## Large Counties
-load("C:/Users/oko8/OneDrive - CDC/COVID/Forecasts/Data/WIS_all horizons_large counties.Rdata")
+load(here("Data/WIS_all horizons_large counties.rdata"))
 WIS_ot_co <-WIS.ot.fig_dat(filter(WIS_all, 
                                   !grepl("2", target),
                                   !grepl("3", target))) 
@@ -321,8 +320,8 @@ Fig2.D <-ot.plot(WIS_ot_co, date, abWIS) +
 
 ### Coverage Over time
 
-load("C:/Users/oko8/OneDrive - CDC/COVID/Forecasts/Data/cases_nat_state_forecasts_for analysis_2022-08-18.Rdata")
-load("C:/Users/oko8/OneDrive - CDC/COVID/Forecasts/Data/cases_large counties_forecasts_for analysis_2022-08-18.Rdata")
+load(here("Data/cases_nat_state_forecasts_for analysis_2022-08-18.rdata"))
+load(here("Data/cases_large counties_forecasts_for analysis_2022-08-18.rdata"))
 
 ## National
 cov_ot_nat <-cov.ot.fig_dat(filter(dat_US_state, location=="US", sub_date <= cut_date,
@@ -379,7 +378,7 @@ annotate_figure(
 ```{r Fig S5.3, echo=FALSE, warning=FALSE, message=FALSE, fig.height=10, fig.width=15}
 
 # Forecasts
-load("C:/Users/oko8/OneDrive - CDC/COVID/Forecasts/Data/WIS_all horizons_nat_state.Rdata")
+load(here("Data/WIS_all horizons_nat_state.rdata"))
 
 ###
 relWIS <-WIS_all %>%

@@ -1,17 +1,15 @@
 library(tidyverse)
 
-setwd("C:/Users/oko8/OneDrive - CDC/COVID/Forecasts/Data")
-
 ####--- Data management ---####
 
-load("C:/Users/oko8/OneDrive - CDC/Projects/epiforecasts_all_versions_rt/all_versions_exported/rt3.rdata")
-phases <-rt3 %>%
+load("./Data/rt_phases.rdata")
+phases <-rt_phases %>%
   dplyr::select(date, location_name, location, phase, sum) %>%
   rename(true_value=sum)  %>%
   mutate(date=as.Date(date)+3) #Date = Wednesday, but need it to be on Saturday
-save(phases, file="covid_epi_phases.rdata")
+save(phases, file="./Data/covid_epi_phases.rdata")
 
-load("C:/Users/oko8/OneDrive - CDC/COVID/Forecasts/Data/WIS_all horizons_nat_state.rdata")
+load("./Data/WIS_all horizons_nat_state.rdata")
 
 ### Analysis for phase at forecast prediction
 
@@ -34,7 +32,7 @@ WIS_gee <- WIS_all %>%
   ) %>%
   ungroup()
 
-save(WIS_gee, file="WIS_gee.rdata")
+save(WIS_gee, file="./Data/WIS_gee.rdata")
 
 ########################################
 ########################################
@@ -58,4 +56,4 @@ for(i in 1:length(team)){
                       corstr = "independence")  
 }
 
-save(model, file="gee_for_manuscript.rda")
+save(model, file="./Data/gee_for_manuscript.rda")

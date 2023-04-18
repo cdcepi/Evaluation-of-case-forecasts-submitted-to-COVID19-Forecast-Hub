@@ -10,6 +10,7 @@ output:
 ```{r setup, include=FALSE} 
 knitr::opts_chunk$set(warning=FALSE,message=FALSE) 
 
+library(here)
 library(tidyverse)
 library(covidcast)
 library(epiprocess)
@@ -79,7 +80,7 @@ x_targets <-x %>%
     flag_target, geo_value, wk)
 
 ## rename locations based on state names
-states <-read.csv("C:/Users/oko8/OneDrive - CDC/Projects/covid19-forecast-hub/data-locations/locations.csv") %>%
+states <-read.csv(here("Data/locations.csv")) %>%
   rename(fips = location) %>%
   mutate(fips = as.character(fips)) %>%
   filter(nchar(fips)==2) %>%
@@ -101,7 +102,7 @@ x_submission <-x_targets %>%
   dplyr::select(-date)
 
 ## Read in data
-load("C:/Users/oko8/OneDrive - CDC/COVID/Forecasts/Data/WIS_gee.Rdata")
+load(here("Data/WIS_gee.Rdata"))
 
 WIS_rev <-WIS_gee %>%
    arrange(location_name, date) %>%

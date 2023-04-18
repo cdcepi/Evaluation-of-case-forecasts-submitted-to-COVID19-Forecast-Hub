@@ -78,7 +78,7 @@ include_subs <-function(x, df){
 ### Applying inclusion criteria
 
 ## National
-load("C:/Users/oko8/OneDrive - CDC/COVID/Forecasts/Data/updated_cases_nat_state_forecasts_2022-04-04.Rdata")
+load("./Data/updated_cases_nat_state_forecasts_2022-04-04.Rdata")
 
 dat_US_state <- all_dat %>%
 
@@ -91,11 +91,11 @@ dat_US_state <- all_dat %>%
   include_subs(df=.) %>%
   dplyr::select(-quants, -no_horizons, -locs, -total, -subs, -percent_sub)
 
-save(dat_US_state, file=paste0("C:/Users/oko8/OneDrive - CDC/COVID/Forecasts/Data/cases_nat_state_forecasts_for analysis_",
+save(dat_US_state, file=paste0("./Data/cases_nat_state_forecasts_for analysis_",
                                Sys.Date(), ".Rdata"))
 
 ## Large counties
-load("C:/Users/oko8/OneDrive - CDC/COVID/Forecasts/Data/cases_county_forecasts_2022-04-04.Rdata")
+load("./Data/cases_county_forecasts_2022-04-04.Rdata")
 
 # All inclusion criteria except for % of counties per pop size
 all_dat <-all_dat %>%
@@ -106,7 +106,7 @@ all_dat <-all_dat %>% include_wks(df=.)
 all_dat <-all_dat %>% include_subs(df=.) 
 
 # Inclusion criteria for counties based on pop size
-size <-read.csv("C:/Users/oko8/Downloads/SVI2018_US_COUNTY.csv") %>%
+size <-read.csv("./Data/SVI2018_US_COUNTY.csv") %>% #data source: https://www.atsdr.cdc.gov/placeandhealth/svi/data_documentation_download.html
   dplyr::select(FIPS, E_TOTPOP) %>%
   rename(location=FIPS) %>%
   mutate(location=as.character(location),
@@ -124,12 +124,12 @@ all_dat <-all_dat %>%
 dat_large_count <-all_dat %>%
   filter(pop_size_quant2==5) 
   
-save(dat_large_count, file=paste0("C:/Users/oko8/OneDrive - CDC/COVID/Forecasts/Data/cases_large counties_forecasts_for analysis_",
+save(dat_large_count, file=paste0("./Data/cases_large counties_forecasts_for analysis_",
                                   Sys.Date(), ".Rdata"))
 ## All other counties
 dat_other_count <-all_dat %>%
   filter(pop_size_quant2!=5) 
 
-save(dat_other_count, file=paste0("C:/Users/oko8/OneDrive - CDC/COVID/Forecasts/Data/cases_non large counties_forecasts_for analysis_",
+save(dat_other_count, file=paste0("./Data/cases_non large counties_forecasts_for analysis_",
                                    Sys.Date(), ".Rdata"))
 

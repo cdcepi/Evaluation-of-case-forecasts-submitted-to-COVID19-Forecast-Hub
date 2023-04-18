@@ -25,7 +25,7 @@ rd_obs <-function(){
   end_date <-as.Date("2022-03-19")
   
   # Reported cases counts from Forecast hub as of April 2, 2022
-  obs_data <- read_csv("C:/Users/oko8/OneDrive - CDC/Projects/covid19-forecast-hub/data-truth/truth-Incident Cases.csv") %>%
+  obs_data <- read_csv("./Data/truth-Incident Cases.csv") %>%
     mutate(wk_end_date = as.Date(date, "%m/%d/%y"),
            wk_end_date=as.Date(cut(wk_end_date,"week", start.on.monday = FALSE)) + 6) %>% #,
            #value=ifelse(value < 0, 0, value)) %>%

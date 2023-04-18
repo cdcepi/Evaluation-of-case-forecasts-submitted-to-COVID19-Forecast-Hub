@@ -10,6 +10,7 @@ output:
 ```{r setup, include=FALSE} 
 knitr::opts_chunk$set(warning=FALSE,message=FALSE) 
 
+library(here)
 library(tidyverse)
 library(tidytext)
 library(ggrepel)
@@ -24,8 +25,6 @@ library(emmeans)
 library(splines)
 
 library(grid)
-
-setwd("C:/Users/oko8/OneDrive - CDC/COVID/Forecasts")
 
 ## Standardized formatting
 strip.background_standard <-element_blank()
@@ -104,15 +103,8 @@ shift_legend <- function(p){
 
 ```{r echo=FALSE, warning=F, message=F}
 
-load("C:/Users/oko8/OneDrive - CDC/COVID/Forecasts/Data/WIS_gee.Rdata") # data
-load("C:/Users/oko8/OneDrive - CDC/COVID/Forecasts/Code/model_caseslogstd_noint_gee.rda")
-
-WIS_gee <-WIS_gee %>%
-  group_by(model) %>%
-  mutate(WIS_log_std=(log(interval_score)-mean(log(interval_score)))/sd(log(interval_score)),
-         cases_log_std=(log(true_value)-mean(log(true_value)))/sd(log(true_value))
-  ) %>%
-  ungroup()
+load(here("./Data/WIS_gee.Rdata")) # data
+load(here("./Data/gee_for_manuscript.rda"))
 
 team <-c(unique(as.character(WIS_gee$model))) 
 dat_team <-list()
@@ -137,8 +129,8 @@ for(i in 1:length(team)){
     dplyr::select(model, contains("mean_"), contains("sd_")) %>%
     distinct()
                                       
-  marg_means[[i]] <-ggemmeans(model[[i]], terms=c("phase_all", "cases_log_std[-1.96:1.96]")) %>%
-    rename(phase_all=x,
+  marg_means[[i]] <-ggemmeans(model[[i]], terms=c("phase", "cases_log_std[-1.96:1.96]")) %>%
+    rename(phase=x,
            cases=group) %>% 
     mutate(model=team[i],
            predicted_back=(predicted*means_sds[[i]]$sd_log_WIS) + means_sds[[i]]$mean_log_WIS,
@@ -156,10 +148,10 @@ marg_means <-do.call(rbind.data.frame, marg_means)
 marg_means <-marg_means %>%
   
   mutate(model=as.factor(model)) %>%
-  mutate(phase_all=as.factor(ifelse(phase_all=="increasing", "Increasing",
-                                    ifelse(phase_all=="decreasing", "Decreasing",
-                                           ifelse(phase_all=="peak", "Peak", "Nadir")))),
-         phase_all=factor(phase_all, 
+  mutate(phase=as.factor(ifelse(phase=="increasing", "Increasing",
+                                    ifelse(phase=="decreasing", "Decreasing",
+                                           ifelse(phase=="peak", "Peak", "Nadir")))),
+         phase=factor(phase, 
                           levels = c("Increasing", "Peak", "Decreasing",  "Nadir"))
   ) 
 
@@ -167,8 +159,8 @@ marg_means <-marg_means %>%
 # Figure
 FigS6 <-marg_means %>%
   ggplot(., aes(cases_back_rescale, predicted_back_rescale)) +
-  geom_line(aes(color=phase_all)) +
-  geom_ribbon(aes(ymin=predicted_back_lo_rescale, ymax=predicted_back_up_rescale, fill=phase_all), alpha=0.35) +
+  geom_line(aes(color=phase)) +
+  geom_ribbon(aes(ymin=predicted_back_lo_rescale, ymax=predicted_back_up_rescale, fill=phase), alpha=0.35) +
   scale_fill_manual(breaks = c("Increasing", "Decreasing", "Unclassified", "Peak", "Nadir"), 
                       values=c("#fdae61", "#abdda4", "#bababa", "#d7191c", "#2b83ba")) +
   scale_color_manual(breaks = c("Increasing", "Decreasing", "Unclassified", "Peak", "Nadir"), 

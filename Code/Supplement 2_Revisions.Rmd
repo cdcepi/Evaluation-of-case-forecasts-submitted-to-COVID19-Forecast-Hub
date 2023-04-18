@@ -10,6 +10,7 @@ output:
 ```{r setup, include=FALSE} 
 knitr::opts_chunk$set(warning=FALSE,message=FALSE) 
 
+library(here)
 library(tidyverse)
 library(covidcast)
 library(epiprocess)
@@ -73,7 +74,7 @@ cases_all <-main_dat %>%
   distinct()
 
 ## rename locations based on state names
-states <-read.csv("C:/Users/oko8/OneDrive - CDC/Projects/covid19-forecast-hub/data-locations/locations.csv") %>%
+states <-read.csv(here("Data/locations.csv")) %>%
   rename(fips = location) %>%
   mutate(fips = as.character(fips)) %>%
   filter(nchar(fips)==2) %>%
@@ -90,7 +91,7 @@ cases_all <-cases_all %>%
   mutate(location_name=as.factor(location_name))
 
 ## Read in data
-load("C:/Users/oko8/OneDrive - CDC/COVID/Forecasts/Data/WIS_gee.Rdata")
+load(here("Data/WIS_gee.Rdata"))
 
 WIS_rev <-WIS_gee %>%
    arrange(location_name, date) %>%
@@ -101,30 +102,6 @@ WIS_rev <-WIS_gee %>%
    arrange(location_name, date) %>%
    filter(revision==0) %>%
    mutate(location_name=droplevels(location_name))
-
-```
-
-```{r Fig S2.1, echo=FALSE, warning=FALSE, message=FALSE, fig.height=12, fig.width=20}
-
-main_dat <-main_dat %>%
-  mutate(geo_value=toupper(geo_value)) %>%
-  left_join(., states, by=c("geo_value"="abbreviation"))
-
-hx_dats_all %>%
-  mutate(geo_value=toupper(geo_value)) %>%
-  left_join(., states, by=c("geo_value"="abbreviation")) %>%
-  ungroup() %>%
-  ggplot(.) +
-  geom_line(aes(time_value, cases_last), color="#cb181d", alpha=0.55) + #as.factor(wk)),  alpha=0.65) +
-  geom_line(main_dat, mapping=aes(time_value, cases_now), size=0.65) +
-  facet_wrap(~ geo_value, scales="free_y") +
-  scale_x_date(date_labels="%b-%y", breaks = hx_dats_all$wk, date_breaks ="3 months", date_minor_breaks ="1 month") +
-  labs(y="Reported cases") +
-  theme_bw() +
-  theme(legend.position = "none", 
-        axis.title.x=element_blank(), axis.text.x=element_text(size=6),
-        strip.text=strip.text_standard, strip.background=strip.background_standard,
-        panel.border = element_rect(colour = "black", fill = NA))
 
 ```
 
