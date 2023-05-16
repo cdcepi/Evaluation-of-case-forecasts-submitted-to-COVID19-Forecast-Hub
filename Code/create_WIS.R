@@ -6,17 +6,8 @@ cut_date <-as.Date("2021-12-21")
 
 ####--- Observed data ---####
 source("./Code/Reported cases.R")
-
-# obs_data <-reported_obs("state") %>%
-#   ungroup() %>%
-#   add_row(reported_obs("nation")) %>%
-#   add_state_names()
-
-obs_data <-reported_obs("county") %>%
-  mutate(location=as.numeric(location)) %>%
-  filter(location < 60000) %>%
-  mutate(location=as.character(location),
-         location=ifelse(nchar(location)==4, paste0("0",location), location))
+obs_data <-rd_obs() %>%
+  dplyr::select(location_name, date, true_value)
 
 ####--- Estimate WIS ---####
 dat <-function() {
@@ -30,7 +21,8 @@ dat <-dat() %>%
   rename(date=target_end_date,
          prediction=value) %>%
   left_join(., obs_data, by=c("date", "location")) %>%
-  neg_or_zero()
+  mutate(id=paste0(location, "_", date)) %>%
+  filter(!id %in% neg_or_zero$id)
 
 WIS_all <-dat %>%
   filter(type=="quantile") %>%

@@ -56,8 +56,6 @@ states <-read.csv(here("Data/locations.csv")) %>%
   filter(nchar(fips)==2) %>%
   dplyr::select(abbreviation, location_name)
 
-#```{r Fig S2.1, echo=FALSE, warning=FALSE, message=FALSE, fig.height=12, fig.width=20}
-
 hx_dats_first <-hx_dats_all %>%
   mutate(geo_value=toupper(geo_value)) %>%
   left_join(., states, by=c("geo_value"="abbreviation")) %>%

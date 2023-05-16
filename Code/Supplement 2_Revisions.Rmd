@@ -168,7 +168,7 @@ for(i in 1:length(team)){
            predicted_back_up_rescale=exp(predicted_back_up))
   
   #Phases
-  marg_means[[i]] <-ggemmeans(model_rev[[i]], terms=c("phase")) %>% #, "cases_log_std[-2:2]")) %>%
+  marg_means[[i]] <-ggemmeans(model_rev[[i]], terms=c("phase")) %>% 
     rename(phase=x,
            cases=group) %>%
   

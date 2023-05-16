@@ -249,10 +249,9 @@ cov.heatmap <-cov.95 %>%
 submissions <-function(df) {
   
   start_date <-as.Date("2020-07-28")
-  stop_date <-as.Date("2022-02-22")
   
   df <-df %>%
-    filter(sub_date >= start_date & sub_date <= cut_date) %>% #stop_date) %>%
+    filter(sub_date >= start_date & sub_date <= cut_date) %>% 
     dplyr::select(forecast_date, model, location, target, sub_date) %>%
     distinct() %>%
     dplyr::select(-target) %>%
@@ -585,8 +584,6 @@ ggplot(relWIS, aes(model_reorder, location_name)) +
 
 ```{r echo=FALSE, warning=FALSE, message=FALSE, fig.show='hide'}
 
-#options(scipen = 999)
-
 # Function for WIS over time
 WIS.ot.fig_dat <-function(df) {
   
@@ -744,7 +741,6 @@ Fig6 <-annotate_figure(
   grid.arrange(Fig6.A, Fig6.D,
                Fig6.B, Fig6.E,
                Fig6.C, Fig6.F,
-             #Fig6.D, Fig6.H,
              ncol=2),
           bottom = text_grob("*U.S. counties with a population of at least 93,230 people \n", hjust=1, x=1, face = "italic", size = 10))
 
@@ -811,7 +807,7 @@ for(i in 1:length(team)){
            predicted_back_lo_rescale=exp(predicted_back_lo),
            predicted_back_up_rescale=exp(predicted_back_up))
   
-  marg_means[[i]] <-ggemmeans(model[[i]], terms=c("phase")) %>% #, "cases_log_std[-2:2]")) %>%
+  marg_means[[i]] <-ggemmeans(model[[i]], terms=c("phase")) %>% 
     rename(phase=x,
            cases=group) %>%
   
