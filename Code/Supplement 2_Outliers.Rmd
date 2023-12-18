@@ -80,10 +80,13 @@ x_targets <-x %>%
     flag_target, geo_value, wk)
 
 ## rename locations based on state names
-states <-read.csv(here("Data/locations.csv")) %>%
-  rename(fips = location) %>%
+states <-tidycensus::fips_codes %>% 
+  rename(fips = state_code, 
+         abbreviation=state, 
+         location_name=state_name) %>%
   mutate(fips = as.character(fips)) %>%
   filter(nchar(fips)==2) %>%
+  distinct() %>%
   dplyr::select(abbreviation, location_name)
 
 x_targets <-x_targets %>%
@@ -182,9 +185,11 @@ for(i in 1:length(team)){
            predicted_back_up_rescale=exp(predicted_back_up))
   
   #Phases
-  marg_means[[i]] <-ggemmeans(model_rev[[i]], terms=c("phase")) %>% 
+  marg_means[[i]] <-as.data.frame(ggemmeans(model_rev[[i]], terms=c("phase")) %>% 
     rename(phase=x,
-           cases=group) %>%
+           cases=group)) 
+  
+  marg_means[[i]] <-marg_means[[i]] %>%
   
     mutate(model=team[i],
            predicted_back=(predicted*means_sds[[i]]$sd_log_WIS) + means_sds[[i]]$mean_log_WIS,

@@ -1,0 +1,141 @@
+---
+title: "Supplement 4: Spatial Correlations"
+author: "VKL"
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+output:
+  html_document:
+    keep_md: yes
+---
+
+```{r setup, include=FALSE} 
+knitr::opts_chunk$set(warning=FALSE,message=FALSE) 
+
+library(here)
+library(tidyverse)
+
+library(scoringutils)
+library(ggthemes)
+
+library(sf)
+library(spdep)
+
+## Standardized formatting
+strip.background_standard <-element_blank()
+strip.text_standard <-element_text(size = 12, face='bold')
+legend.text_standard <-element_text(size=12)
+plot.caption_standard <-element_text(size=10, face = "italic")
+axis.title.y_standard <-element_text(margin = margin(1, 10, 1, 1), size=12)
+axis.text_standard <-element_text(size=11)
+
+
+## Read in data used in analysis
+load("./Data/WIS_all horizons_nat_state.rdata")
+WIS_st <-WIS_all %>%
+  ungroup() %>%
+  filter(location_name!="National") %>%
+  summarise_scores(by = c("model", "location_name"),
+                   metric="interval_score",
+                   relative_skill = TRUE,
+                   baseline = "COVIDhub-baseline") %>%
+  mutate(location_name=tolower(location_name)) %>%
+  filter(model!="COVIDhub-baseline")
+
+```
+
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+
+## Run Moran's I for spatial correlation of WIS estimates (states only)
+
+set.seed(2354)
+
+WIS_st$location_name <-str_to_title(WIS_st$location_name)
+exclude <-c("Alaska", "Hawaii", "Puerto Rico")
+coords <-tigris::states(class="sf", cb=TRUE) %>%
+  mutate(NAME=str_to_title(NAME)) %>%
+  dplyr::select(geometry, NAME) %>%
+  filter(!NAME %in% exclude)
+
+mods <-sort(unique(WIS_st$model))
+MI <-list()
+
+for(i in 1:length(mods)){
+  WIS_st_sub <-WIS_st %>%
+    dplyr::select(scaled_rel_skill, model, location_name) %>%
+    filter(model==mods[i])
+  
+  s <-coords %>%
+    left_join(., WIS_st_sub, by=c("NAME"="location_name")) %>%
+    drop_na() %>%
+    dplyr::select(-model)
+  
+  nb <-poly2nb(s, queen=TRUE) # Define the neighbors (use queen case)
+  lw <-nb %>% nb2listw(., style="W", zero.policy=TRUE) # Compute the neighboring average WIS
+  
+  MI[[i]] <- moran.mc(s$scaled_rel_skill, lw, nsim=1000, alternative="greater") # Run the MC simulation version of the Moran's I test
+
+}
+
+MI_stat <-list()
+MI_p <-list()
+for(i in 1:length(mods)){
+  MI_stat[[i]] <-MI[[i]]$statistic
+  MI_p[[i]] <-MI[[i]]$p.value
+}
+stats <-round(do.call(c, MI_stat), 2)
+ps <-round(do.call(c, MI_p), 3)
+
+MI_results <-bind_cols(mods, stats, ps) %>%
+  rename(model=1,
+         morans=2, 
+         p_value=3)
+
+
+```
+
+
+```{r Fig S4.1, echo=FALSE, warning=F, message=F, fig.height=8.5, fig.width=11}
+
+### National WIS (for reordering teams in plot)
+WIS_nat <-WIS_all %>%
+  filter(location_name=="National") %>% 
+  summarise_scores(by = c("model"),
+                   metric="interval_score",
+                   relative_skill = TRUE,
+                   baseline = "COVIDhub-baseline") %>%
+  left_join(., MI_results, by=c("model")) %>%
+  filter(model!="COVIDhub-baseline") %>%
+  mutate(order=paste0(model, "\nMoran's I: ", morans, " (p-value ", p_value, ")"),
+         order=as.factor(ifelse(scaled_rel_skill < 1.0, paste0(model, "*\nMoran's I: ", morans, " (p-value ", p_value, ")"), order)),
+         order=fct_reorder(order, scaled_rel_skill))
+WIS_levels <-levels(WIS_nat$order) 
+mods_better <-WIS_nat %>%
+  filter(scaled_rel_skill < 1.0)
+
+### Update map with Moran I's and reorder
+us <-map_data("state")
+WIS_map <-coords %>%
+  left_join(., WIS_st, by=c("NAME"="location_name")) %>%
+  left_join(., MI_results, by=c("model")) %>%
+  mutate(model_group=ifelse(model %in% mods_better$model, "National rWIS < 1.0", "National rWIS > 1.0"), 
+         model=ifelse(model %in% mods_better$model, paste0(model, "*"), model), 
+         order=paste0(model, "\nMoran's I: ", morans, " (p-value ", p_value, ")"),
+         order_fact=factor(order, levels=WIS_levels)) %>% drop_na() 
+
+WIS_map %>%
+  ggplot(., aes(fill = log(scaled_rel_skill))) +
+  geom_sf(color = "grey65") + 
+  facet_wrap(~order_fact) +
+  theme_void() +
+  scale_fill_gradient2(low = "steelblue", high = "red", midpoint = 0, na.value = "grey75", 
+                       name = "State-Level Relative\nWeighted Interval Score", 
+                       breaks = c(-1,0,1,2), 
+                       labels =c("0.5", 1, 2, 3)) + 
+  labs(caption="*National rWIS < 1.0") +
+  theme(plot.margin = unit(c(0,0,0,0), "cm"),
+        strip.background=element_blank(), strip.text=element_text(size = 10, face='bold'),
+        legend.justification = c(1,0), legend.position=c(0.90, 0.10),
+        legend.direction = "horizontal")
+
+```
+

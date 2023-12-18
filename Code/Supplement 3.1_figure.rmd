@@ -128,7 +128,7 @@ WIS.heatmap <-mean_WIS %>%
 ### Coverage estimates
 
 cov.95 <-function() {
-  load(here("Data/cases_large counties_forecasts_for analysis_2022-08-18.rdata"))
+  load(here("Data/cases_large counties_forecasts_for analysis.rdata"))
   
   ## Large counties
   coverage_counties <- dat_large_count %>%
@@ -138,7 +138,7 @@ cov.95 <-function() {
     summarize(mean_count=mean(coverage.95)) %>%
     mutate(pop_size_quant2="County Forecasts: Size Quantile 5")
   
-  load(here("Data/cases_non large counties_forecasts_for analysis_2022-08-18.rdata"))
+  load(here("Data/cases_non large counties_forecasts_for analysis.rdata"))
   
   ## Non Large counties
   coverage_counties_other <- dat_other_count %>%
@@ -208,11 +208,11 @@ submissions <-function(df) {
   
 }
 
-load(here("Data/cases_large counties_forecasts_for analysis_2022-08-18.rdata"))
+load(here("Data/cases_large counties_forecasts_for analysis.rdata"))
 subs_co <-submissions(df=dat_large_count) %>%
   mutate(pop_size_quant2="County Forecasts: Size Quantile 5")
 
-load(here("Data/cases_non large counties_forecasts_for analysis_2022-08-18.rdata"))
+load(here("Data/cases_non large counties_forecasts_for analysis.rdata"))
 subs_co_other <-submissions(df=dat_other_count) %>%
   rename_counts()
 
