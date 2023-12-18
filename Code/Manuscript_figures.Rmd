@@ -40,6 +40,11 @@ plot.caption_standard <-element_text(size=10, face = "italic")
 axis.title.y_standard <-element_text(margin = margin(1, 10, 1, 1), size=12)
 axis.text_standard <-element_text(size=11)
 
+heatmap_format <-theme(axis.title.x = element_blank(), 
+                       axis.title.y = element_blank(), 
+                       axis.text=axis.text_standard,
+                       legend.position="bottom", legend.title.align=0.5, legend.box.just = "center") 
+
 ```
 
 ## Main Text Figures
@@ -74,7 +79,7 @@ Fig1.A <-ggplot() +
         legend.margin=margin(c(0.5,1,1,1)),
         legend.key = element_rect(colour = NA, fill = NA)) + theme(axis.text.y=element_text(angle=90, vjust=0.5, hjust=0.5))
 
-load(here("Data/cases_nat_state_forecasts_for analysis_2022-08-18.Rdata"))
+load(here("Data/cases_nat_state_forecasts_for analysis.Rdata"))
 
 cast_dates <-dat_US_state %>% 
   filter(model=="COVIDhub-4_week_ensemble") %>% 
@@ -115,14 +120,15 @@ Fig1.B <-dat_US_state %>%
        y="Incident COVID-19 Cases") +
   theme_bw() +
   theme(axis.title.x = element_blank(), axis.text.y=element_text(angle=90, vjust=0.5, hjust=0.5),
-        legend.title = element_blank(), legend.position = c(0.20, 0.82)) + scale_y_continuous(label=comma,
-                                                                                               breaks=pretty_breaks(2))
+        legend.title = element_blank(), legend.position = c(0.20, 0.82)) + 
+  scale_y_continuous(label=comma, breaks=pretty_breaks(2))
+
 plot_grid(Fig1.A, Fig1.B,
           nrow=2)
 
 ```
 
-Figure 2. 95% coverage and relWIS  and submissions per team
+### Figure 2. 95% coverage and relWIS  and submissions per team
 
 ```{r echo=FALSE, warning=FALSE, message=FALSE}
 
@@ -185,10 +191,7 @@ WIS.heatmap <-mean_WIS %>%
   theme_bw() +
   labs(fill="Relative Weighted Interval Score",
        title="B. Relative Weighted Interval Score") +
-  theme(axis.title.x = element_blank(), 
-        axis.title.y = element_blank(), axis.text.y=element_blank(),
-        axis.text=axis.text_standard,
-        legend.position="bottom") 
+  heatmap_format + theme(axis.text.y=element_blank())
 
 
 ############################################################################
@@ -198,7 +201,7 @@ WIS.heatmap <-mean_WIS %>%
 
 cov.95 <-function() {
   
-  load(here("Data/cases_nat_state_forecasts_for analysis_2022-08-18.Rdata"))
+  load(here("Data/cases_nat_state_forecasts_for analysis.Rdata"))
 
   coverage_US <- dat_US_state %>%
     filter(sub_date <= cut_date) %>%
@@ -236,10 +239,7 @@ cov.heatmap <-cov.95 %>%
   theme_bw() +
   labs(fill="95% Coverage",
        title="C. 95% Coverage") +
-  theme(axis.title.x = element_blank(), #axis.text.x = element_text(angle = 45, hjust=1),
-        axis.title.y = element_blank(), axis.text.y=element_blank(),
-        axis.text=axis.text_standard,
-        legend.position="bottom")
+  heatmap_format + theme(axis.text.y=element_blank())
 
 ############################################################################
 ############################################################################
@@ -249,9 +249,10 @@ cov.heatmap <-cov.95 %>%
 submissions <-function(df) {
   
   start_date <-as.Date("2020-07-28")
+  stop_date <-as.Date("2022-02-22")
   
   df <-df %>%
-    filter(sub_date >= start_date & sub_date <= cut_date) %>% 
+    filter(sub_date >= start_date & sub_date <= cut_date) %>% #stop_date) %>%
     dplyr::select(forecast_date, model, location, target, sub_date) %>%
     distinct() %>%
     dplyr::select(-target) %>%
@@ -307,10 +308,7 @@ all_subs <-subs_nat %>%
   theme_bw() +
   labs(fill="% Weeks \nSubmitted",
        title="A. Percent of Weeks Submitted") +
-  theme(axis.title.x = element_blank(), 
-        axis.title.y = element_blank(), 
-        axis.text=axis.text_standard,
-        legend.position="bottom")
+  heatmap_format
 
 ############################################################################
 ############################################################################
@@ -397,7 +395,7 @@ cov.plot <-function(df, df2) {
 }
 
 # Figures
-load(here("Data/cases_nat_state_forecasts_for analysis_2022-08-18.Rdata"))
+load(here("Data/cases_nat_state_forecasts_for analysis.Rdata"))
 
 coverage_US <-cov.fig_dat(filter(dat_US_state, location=="US", sub_date <= cut_date))
 labels_US <-data_labels(coverage_US)
@@ -414,7 +412,7 @@ Cov.State <-cov.plot(coverage_states, labels_states) +
   labs(title="B. Coverage for National State/Territory/DC Forecasts")
 
 # Largest Counties
-load(here("Data/cases_large counties_forecasts_for analysis_2022-08-18.Rdata"))
+load(here("Data/cases_large counties_forecasts_for analysis.Rdata"))
 coverage_count <-cov.fig_dat(filter(dat_large_count, sub_date <= cut_date))
 labels_count <-data_labels(coverage_count) 
 Cov.Co <-cov.plot(coverage_count, labels_count) +
@@ -573,9 +571,9 @@ ggplot(relWIS, aes(model_reorder, location_name)) +
                        labels =c("0.5", 1, 2, 3)) + 
   theme_bw() +
   labs(fill="Relative Weighted Interval Score") +
-  theme(axis.title.x = element_blank(), axis.text.x = element_text(angle = 45, hjust=1),
-        axis.title.y = element_blank(),
-        axis.text=axis.text_standard, plot.caption = plot.caption_standard)
+  heatmap_format +
+  theme(axis.text.x = element_text(angle = 45, hjust=1),
+        plot.caption = plot.caption_standard)
 
 
 ```
@@ -583,6 +581,8 @@ ggplot(relWIS, aes(model_reorder, location_name)) +
 ### Figure 6. Absolute WIS and 95% coverage over time
 
 ```{r echo=FALSE, warning=FALSE, message=FALSE, fig.show='hide'}
+
+#options(scipen = 999)
 
 # Function for WIS over time
 WIS.ot.fig_dat <-function(df) {
@@ -697,8 +697,8 @@ Fig6.C <-ot.plot(WIS_ot_co, date, abWIS) +
 
 ### Coverage Over time
 
-load(here("Data/cases_nat_state_forecasts_for analysis_2022-08-18.Rdata"))
-load(here("Data/cases_large counties_forecasts_for analysis_2022-08-18.Rdata"))
+load(here("Data/cases_nat_state_forecasts_for analysis.Rdata"))
+load(here("Data/cases_large counties_forecasts_for analysis.Rdata"))
 
 ## National
 cov_ot_nat <-cov.ot.fig_dat(filter(dat_US_state, location=="US", sub_date <= cut_date)) 
@@ -741,6 +741,7 @@ Fig6 <-annotate_figure(
   grid.arrange(Fig6.A, Fig6.D,
                Fig6.B, Fig6.E,
                Fig6.C, Fig6.F,
+             #Fig6.D, Fig6.H,
              ncol=2),
           bottom = text_grob("*U.S. counties with a population of at least 93,230 people \n", hjust=1, x=1, face = "italic", size = 10))
 
@@ -762,7 +763,7 @@ annotate_figure(Fig6.note1,
 ```
 
 
-### Figure 7 . Marginal mean WIS
+### Figure 7 . Marginal mean WIS and 95% COverage
 
 ```{r echo=FALSE, warning=F, message=F}
 
@@ -807,9 +808,12 @@ for(i in 1:length(team)){
            predicted_back_lo_rescale=exp(predicted_back_lo),
            predicted_back_up_rescale=exp(predicted_back_up))
   
-  marg_means[[i]] <-ggemmeans(model[[i]], terms=c("phase")) %>% 
+  marg_means[[i]] <-as.data.frame(ggemmeans(model[[i]], terms=c("phase")) %>% #, "cases_log_std[-2:2]")) %>%
     rename(phase=x,
-           cases=group) %>%
+           cases=group) 
+    )
+  
+  marg_means[[i]] <-marg_means[[i]] %>%
   
     mutate(model=team[i],
            predicted_back=(predicted*means_sds[[i]]$sd_log_WIS) + means_sds[[i]]$mean_log_WIS,
@@ -831,7 +835,7 @@ marg_means_int <-marg_means_int %>%
 levels <-levels(marg_means_int$model)
 
 marg_means <-marg_means %>%
-  
+
   ## Order by increasing error, on average
   mutate(model=as.factor(model),
          model=factor(model, levels = levels)) %>%
@@ -858,10 +862,7 @@ Fig7A <-marg_means_int %>%
         title="A.") +
   theme_bw() +
   theme(axis.title.y=axis.title.y_standard, axis.text.y=axis.text_standard,
-        legend.position = "bottom", legend.title = element_blank(), legend.text=legend.text_standard,
-        strip.text=strip.text_standard, strip.background=strip.background_standard,
         axis.title.x = element_blank(),
-        #axis.text.x = element_text(angle = 45, hjust=1),
         axis.text.x = element_blank())
 
 ```
@@ -884,20 +885,164 @@ Fig7B <-marg_means %>%
   labs(y="", title="B.",
        caption="*80% CI is lower than baseline") + 
   theme_bw() +
-  theme(legend.position = "bottom", legend.title.align=0.5, legend.box.just = "center", 
-    plot.caption = plot.caption_standard,
-    strip.text=strip.text_standard, strip.background=strip.background_standard,
-    panel.border = element_rect(colour = "black", fill = NA),
-    axis.title.x = element_blank(), axis.text.x = element_text(angle = 45, hjust=1), axis.text=axis.text_standard,
-    axis.ticks.y=element_blank())
+  heatmap_format +
+  theme(axis.text.x = element_blank(), #axis.text.x = element_text(angle = 45, hjust=1), 
+      axis.ticks.y=element_blank())
 
 ```
 
+```{r echo=FALSE, warning=F, message=F}
 
-```{r Fig7, echo=FALSE, warning=F, message=F, fig.height=8.5, fig.width=8.5}
+load(here("Data/WIS_all horizons_nat_state.rdata")) # data
+load("./Data/covid_epi_phases.rdata")
+
+Fig7C <-WIS_all %>%
+  filter(location!="US", 
+         range==95)%>%
+  dplyr::select( "location_name", "location", "target", "date", "model" ,
+                 "sub_date","coverage") %>% 
+  distinct() %>%
+  left_join(., phases, by=c("date", "location_name", "location")) %>%
+  drop_na() %>%
+  mutate(phase=str_to_title(phase)) %>%
+  mutate(model=as.factor(model),
+         model=factor(model, levels = levels),
+         phase=factor(phase, 
+                      levels = c("Increasing", "Peak", "Decreasing",  "Nadir")),
+         phase=fct_rev(phase)
+  ) %>%
+  group_by(phase, model) %>%
+  summarise(cov=round(mean(coverage), 2)) %>%
+  ggplot() +
+  geom_tile(aes(model, phase, fill=cov)) +
+  geom_text(aes(model, phase, label=cov), size=2.5) +
+  scale_fill_gradient2(low = "white", mid = "#f7fcb9", high = "#31a354", midpoint = 0.75, na.value = "grey75",
+                       name="95% Prediction Interval Coverage",
+                       guide = guide_colourbar(barheight = 1.5)) +
+  labs(y="", title="C.") + 
+  theme_bw() +
+  heatmap_format +
+  theme(panel.border = element_rect(colour = "black", fill = NA),
+        axis.text.x = element_text(angle = 45, hjust=1), 
+        axis.ticks.y=element_blank())
+
+```
+
+```{r Fig7, echo=FALSE, warning=F, message=F, fig.height=11, fig.width=8.5}
+
+plot_grid(Fig7A, Fig7B, Fig7C,
+          rel_heights  = c(0.35, 0.50, 0.70), axis = "l",
+          align="v", nrow = 3)
+
+```
+
+### Figure 8: % Prediction in Each Direction
+
+```{r echo=FALSE, warning=F, message=F}
+
+#levels <-levels[!levels %in% "COVIDhub-baseline"]
+#
+dat <-dat_US_state %>%
+  filter(#!grepl("baseline", model), 
+         quantile==0.25 | quantile==0.75) %>%
+  pivot_wider(names_from = c(type, quantile), values_from=value)
+
+base <-dat_US_state %>%
+  filter(grepl("baseline", model),
+         quantile==0.5) %>%
+  pivot_wider(names_from = c(type, quantile), values_from=value) %>%
+  rename(quantile_0.50_base=quantile_0.5) %>%
+  dplyr::select(-model, -sub_date, -forecast_date)
+
+direct <-dat %>%
+  left_join(., base, by=c("location", "target", "target_end_date")) %>%
+  mutate(pred_class=as.factor(ifelse(quantile_0.25 > quantile_0.50_base, "increasing",
+                      ifelse(quantile_0.75 < quantile_0.50_base, "decreasing", "stable/uncertain")))) %>%
+  rename(date=target_end_date) %>%
+  left_join(., phases, by=c("date", "location")) %>%
+  drop_na() %>%
+  mutate(model=as.factor(model), 
+         model=factor(model, levels=levels),
+         phase=as.factor(str_to_title(phase)),
+         phase=factor(phase, levels=c("Nadir", "Decreasing", "Peak", "Increasing")))
+
+team_phase_pred <-crossing(direct$model, direct$pred_class, direct$phase) %>%
+  rename(model=1, 
+         pred_class=2,
+         phase=3) #%>%
+  #filter(!grepl("baseline", model))
+
+team_phase <-direct %>%
+  group_by(model, phase) %>%
+  count() %>%
+  rename(phase_denom=n)
+
+direct <-direct %>%
+  group_by(model, phase, pred_class) %>%
+  count(.) %>%
+  ungroup() %>%
+  right_join(., team_phase_pred, by=c("model", "phase", "pred_class")) %>%
+  left_join(., team_phase, by=c("model", "phase")) %>%
+  mutate(precent_pred=n/phase_denom, 
+         precent_pred=ifelse(is.na(precent_pred), 0, precent_pred), 
+         value_display=format(round(precent_pred, digits=2), nsmall = 2),
+         value_display=ifelse(value_display=="  NA", NA, value_display))
+
+Fig8A <-direct %>%
+  filter(pred_class=="increasing") %>%
+  ggplot(aes(model, phase)) +
+  geom_tile(aes(fill=precent_pred)) +
+  geom_text(aes(label=value_display), size=2.75) +
+  scale_fill_gradient2(low = "#fdd0a2", high = "#e6550d",  na.value = "grey75",
+                       name = stringr::str_wrap("Percent of forecasts with predicted increasing trajectory",
+                                                 width = 35), 
+                       guide = guide_colourbar(barheight = 1.5, title.position = "top")) +#, title.hjust=0.5)) +
+  labs(y="", title="A.") + 
+  theme_bw() +
+  heatmap_format +
+  theme(axis.text.x = element_blank(), 
+        axis.ticks.y=element_blank(), 
+        legend.position = "right", legend.direction = "horizontal", legend.title.align=0) 
 
 
-plot_grid(Fig7A, Fig7B, rel_heights  = c(0.5, 1), axis = "l",
-          align="v", nrow = 2)
+Fig8B <-direct %>%
+  filter(pred_class=="stable/uncertain") %>%
+  ggplot(aes(model, phase)) +
+  geom_tile(aes(fill=precent_pred)) +
+  geom_text(aes(label=value_display), size=2.75) +
+  scale_fill_gradient2(low = "#dadaeb", high = "#54278f",  na.value = "grey75",
+                       name = stringr::str_wrap("Percent of forecasts with predicted stable or uncertain trajectory",
+                                                 width = 35), 
+                       guide = guide_colourbar(barheight = 1.5, title.position = "top")) +#, title.hjust=0.5)) +
+  labs(y="", title="B.") + 
+  theme_bw() +
+  heatmap_format +
+  theme(axis.text.x = element_blank(), 
+        axis.ticks.y=element_blank(), 
+        legend.position = "right", legend.direction = "horizontal", legend.title.align=0) 
+
+Fig8C <-direct %>%
+  filter(pred_class=="decreasing") %>%
+  ggplot(aes(model, phase)) +
+  geom_tile(aes(fill=precent_pred)) +
+  geom_text(aes(label=value_display), size=2.75) +
+  scale_fill_gradient2(low = "#a1d99b", high = "#006d2c", na.value = "grey75",
+                       name = stringr::str_wrap("Percent of forecasts with predicted decreasing trajectory",
+                                                 width = 35), 
+                       guide = guide_colourbar(barheight = 1.5, title.position = "top")) +#, title.hjust=0.5)) +
+  labs(y="", title="C.") + 
+  theme_bw() +
+  heatmap_format +
+  theme(axis.text.x = element_text(angle = 45, hjust=1), 
+        axis.ticks.y=element_blank(), 
+        legend.position = "right", legend.direction = "horizontal", legend.title.align=0) 
+
+```
+
+```{r Fig9, echo=FALSE, warning=F, message=F, fig.height=8.5, fig.width=11}
+
+plot_grid(Fig8A, Fig8B, Fig8C,
+          rel_heights  = c(0.50, 0.50, 0.82), axis = "l",
+          align="v", nrow = 3)
 
 ```
