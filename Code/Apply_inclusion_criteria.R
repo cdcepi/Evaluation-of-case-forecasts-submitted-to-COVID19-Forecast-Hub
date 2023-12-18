@@ -7,9 +7,7 @@ memory.limit(size = 50000)
 ### Inclusion criteria
 start_date <-as.Date('2020-07-28')
 stop_date <-as.Date('2021-12-21')
-
-## Non-primary models should be exlcuded
-sec_models <-c("CU-nochange",  "CU-scenario_high", "CU-scenario_low", "CU-scenario_mid", "COVIDhub_CDC-ensemble") #Note ensemble replaced with 4_week ensemble
+location_sub <-c("60", "66", "69")
 
 ## Must have 4 weeks of forecasts for all locations
 include_wks <-function(x, df){
@@ -77,30 +75,40 @@ include_subs <-function(x, df){
 
 ### Applying inclusion criteria
 
-## National
-load("./Data/updated_cases_nat_state_forecasts_2022-04-04.Rdata")
+## National/state
+load("./Data/submitted_cases_nat_state_forecasts.Rdata")
 
 dat_US_state <- all_dat %>%
+  
+  # Exclude weeks with missing missing prediction values
+  group_by(model, sub_date, target, location) %>%
+  filter(any(!is.na(value))) %>%
+  ungroup() %>%
 
   # inclusion criteria
-  filter(!(model %in% sec_models),
-         sub_date <= stop_date) %>%
+  filter(sub_date <= stop_date) %>%
   include_quant(df=.) %>%
   include_wks(df=.) %>%
   include_locs(df=.) %>%
   include_subs(df=.) %>%
-  dplyr::select(-quants, -no_horizons, -locs, -total, -subs, -percent_sub)
+  dplyr::select(-quants, -no_horizons, -locs, -total, -subs, -percent_sub) %>%
+  filter(!(location %in% location_sub)) #remove territories that few teams forecasted
 
-save(dat_US_state, file=paste0("./Data/cases_nat_state_forecasts_for analysis_",
-                               Sys.Date(), ".Rdata"))
+save(dat_US_state, file=paste0("./Data/cases_nat_state_forecasts_for analysis.Rdata"))
 
 ## Large counties
-load("./Data/cases_county_forecasts_2022-04-04.Rdata")
+load("./Data/Submitted_cases_county_forecasts.Rdata")
 
 # All inclusion criteria except for % of counties per pop size
 all_dat <-all_dat %>%
-  filter(!(model %in% sec_models),
-         sub_date <= stop_date) #%>%
+  
+  # exclude weeks with missing missing prediction values
+  group_by(model, sub_date, target, location) %>%
+  filter(any(!is.na(value))) %>%
+  ungroup() %>%
+  
+  # inclusion criteria
+  filter(sub_date <= stop_date) #%>%
 all_dat <-all_dat %>% include_quant(df=.) 
 all_dat <-all_dat %>% include_wks(df=.) 
 all_dat <-all_dat %>% include_subs(df=.) 
@@ -124,12 +132,11 @@ all_dat <-all_dat %>%
 dat_large_count <-all_dat %>%
   filter(pop_size_quant2==5) 
   
-save(dat_large_count, file=paste0("./Data/cases_large counties_forecasts_for analysis_",
-                                  Sys.Date(), ".Rdata"))
+save(dat_large_count, file=paste0("./Data/cases_large counties_forecasts_for analysis.Rdata"))
+
 ## All other counties
 dat_other_count <-all_dat %>%
   filter(pop_size_quant2!=5) 
 
-save(dat_other_count, file=paste0("./Data/cases_non large counties_forecasts_for analysis_",
-                                   Sys.Date(), ".Rdata"))
+save(dat_other_count, file=paste0("./Data/cases_non large counties_forecasts_for analysis.Rdata"))
 

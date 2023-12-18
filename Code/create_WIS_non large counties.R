@@ -12,7 +12,7 @@ obs_data <-rd_obs() %>%
 
 ####--- Estimate WIS ---####
 dat <-function() {
-  load("./Data/cases_non large counties_forecasts_for analysis_2022-08-18.Rdata")
+  load("./Data/cases_non large counties_forecasts_for analysis.Rdata")
   dat <-dat_other_count %>%
     filter(sub_date <= cut_date)
 }
