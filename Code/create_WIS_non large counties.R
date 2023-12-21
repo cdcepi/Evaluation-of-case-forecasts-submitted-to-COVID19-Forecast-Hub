@@ -33,4 +33,4 @@ WIS_all <-dat %>%
   mutate(model=as.factor(model))
 WIS_all$model <-relevel(WIS_all$model, ref ="COVIDhub-baseline")
 
-save(WIS_all, file="./Data/WIS_all horizons_non large counties_all subs.rdata")
+save(WIS_all, file="./Data/WIS_all horizons_non large counties.rdata")

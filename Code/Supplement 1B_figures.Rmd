@@ -92,10 +92,10 @@ shift_legend <- function(p){
 ## Change labels for counties
  rename_counts <-function(df) {   
    df <-df %>%
-     mutate(pop_size_quant2=ifelse(pop_size_quant2==1, "County Forecasts: Size Quantile 1",
-                                 ifelse(pop_size_quant2==2, "County Forecasts: Size Quantile 2",
-                                        ifelse(pop_size_quant2==3, "County Forecasts: Size Quantile 3", 
-                                               ifelse(pop_size_quant2==4, "County Forecasts: Size Quantile 4", "County forecasts: Size Quantile 5")))))
+     mutate(pop_size_quant2=ifelse(pop_size_quant2==1, "County Forecasts: Size Quintile 1",
+                                 ifelse(pop_size_quant2==2, "County Forecasts: Size Quintile 2",
+                                        ifelse(pop_size_quant2==3, "County Forecasts: Size Quintile 3", 
+                                               ifelse(pop_size_quant2==4, "County Forecasts: Size Quintile 4", "County forecasts: Size Quintile 5")))))
 }
 
 ```
@@ -159,12 +159,15 @@ include_subs <-function(x, df){
   
 }
 
+############################################################################
+############################################################################
+
 ```
 
 ```{r Fig S1B, echo=FALSE, warning=FALSE, message=FALSE, fig.height=10, fig.width=11}
 
 ####
-load(here("Data/cases_county_forecasts.Rdata"))
+load(here("Data/Submitted_cases_county_forecasts.Rdata"))
 size <-read.csv(here("Data/SVI2018_US_COUNTY.csv")) %>%
   dplyr::select(FIPS, E_TOTPOP) %>%
   rename(location=FIPS) %>%
