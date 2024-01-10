@@ -131,7 +131,7 @@ WIS_map %>%
                        name = "State-Level Relative\nWeighted Interval Score", 
                        breaks = c(-1,0,1,2), 
                        labels =c("0.5", 1, 2, 3)) + 
-  labs(caption="*National rWIS < 1.0") +
+  labs(caption="*National rWIS < 1.0\nThe base layer for this map was created with ggplot2 (https://ggplot2.tidyverse.org/reference/map_data.html).") +
   theme(plot.margin = unit(c(0,0,0,0), "cm"),
         strip.background=element_blank(), strip.text=element_text(size = 10, face='bold'),
         legend.justification = c(1,0), legend.position=c(0.90, 0.10),
